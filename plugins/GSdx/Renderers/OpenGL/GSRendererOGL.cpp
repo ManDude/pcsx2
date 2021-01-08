@@ -526,7 +526,7 @@ void GSRendererOGL::EmulateBlending(bool& DATE_GL42, bool& DATE_GL45)
 
 		if (accumulation_blend) {
 			// Keep HW blending to do the addition/subtraction
-			dev->OMSetBlendState(blend_index, 0, false, true);
+			dev->OMSetBlendState(blend_index, 0, true);
 			if (ALPHA.A == 2) {
 				// The blend unit does a reverse subtraction so it means
 				// the shader must output a positive value.
@@ -555,9 +555,9 @@ void GSRendererOGL::EmulateBlending(bool& DATE_GL42, bool& DATE_GL45)
 		if (m_ps_sel.dfmt == 1 && ALPHA.C == 1) {
 			// 24 bits doesn't have an alpha channel so use 1.0f fix factor as equivalent
 			const uint8 hacked_blend_index  = blend_index + 3; // +3 <=> +1 on C
-			dev->OMSetBlendState(hacked_blend_index, 128, true);
+			dev->OMSetBlendState(hacked_blend_index, 128);
 		} else {
-			dev->OMSetBlendState(blend_index, ALPHA.FIX, (ALPHA.C == 2));
+			dev->OMSetBlendState(blend_index, (ALPHA.C == 2) ? ALPHA.FIX : 0);
 		}
 	}
 }

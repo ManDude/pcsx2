@@ -528,9 +528,10 @@ void GSRendererDX11::EmulateBlending()
 
 		if (accumulation_blend)
 		{
+			// Keep HW blending to do the addition/subtraction
 			m_om_bsel.accu_blend = 1;
-
-			if (ALPHA.A == 2) {
+			if (ALPHA.A == 2)
+			{
 				// The blend unit does a reverse subtraction so it means
 				// the shader must output a positive value.
 				// Replace 0 - Cs by Cs - 0
@@ -565,7 +566,7 @@ void GSRendererDX11::EmulateBlending()
 		}
 		else
 		{
-			m_om_bsel.blend_factor = ALPHA.FIX;
+			m_om_bsel.blend_factor = (ALPHA.C == 2) ? ALPHA.FIX : 0;
 		}
 	}
 }

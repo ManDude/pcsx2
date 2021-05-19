@@ -72,8 +72,9 @@
       <PreprocessorDefinitions Condition="'$(CI)'=='true'">PCSX2_CI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</MinimalRebuild>
       <MinimalRebuild Condition="'$(Configuration)|$(Platform)'=='Devel|Win32'">false</MinimalRebuild>
-      <MinimalRebuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</MinimalRebuild>
-      <MinimalRebuild Condition="'$(Configuration)|$(Platform)'=='Devel|x64'">false</MinimalRebuild>
+      <MinimalRebuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</MinimalRebuild>
+      <MinimalRebuild Condition="'$(Configuration)|$(Platform)'=='Devel|x64'">true</MinimalRebuild>
+      <MinimalRebuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</MinimalRebuild>
     </ClCompile>
     <Link>
       <LargeAddressAware>Yes</LargeAddressAware>
@@ -323,6 +324,7 @@
     <ClCompile Include="..\..\IopGte.cpp" />
     <ClCompile Include="..\..\IPC.cpp" />
     <ClCompile Include="..\..\FW.cpp" />
+    <ClCompile Include="..\..\JakGoalDebugInspect.cpp" />
     <ClCompile Include="..\..\PAD\Windows\PADConfig.cpp" />
     <ClCompile Include="..\..\PAD\Windows\DeviceEnumerator.cpp" />
     <ClCompile Include="..\..\PAD\Windows\Diagnostics.cpp" />
@@ -695,6 +697,7 @@
     <ClInclude Include="..\..\IopGte.h" />
     <ClInclude Include="..\..\IPC.h" />
     <ClInclude Include="..\..\FW.h" />
+    <ClInclude Include="..\..\JakGoalDebugInspect.h" />
     <ClInclude Include="..\..\PAD\Windows\PAD.h" />
     <ClInclude Include="..\..\PAD\Windows\PADConfig.h" />
     <ClInclude Include="..\..\PAD\Windows\DeviceEnumerator.h" />

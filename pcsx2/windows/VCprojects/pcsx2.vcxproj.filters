@@ -1360,6 +1360,7 @@
     <ClCompile Include="..\..\Recording\Utilities\InputRecordingLogger.cpp">
       <Filter>Recording\Utilities</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\JakGoalDebugInspect.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Patch.h">
@@ -2172,6 +2173,7 @@
     <ClInclude Include="..\..\PAD\Windows\resource_pad.h">
       <Filter>System\Ps2\PAD</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\JakGoalDebugInspect.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="..\wxResources.rc">

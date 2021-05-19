@@ -27,6 +27,8 @@
 
 #include <float.h>
 
+#include "JakGoalDebugInspect.h"
+
 using namespace R5900;		// for OPCODE and OpcodeImpl
 
 extern int vu0branch, vu1branch;
@@ -473,6 +475,17 @@ void JALR()
 	u32 temp = cpuRegs.GPR.r[_Rs_].UL[0];
 
 	if (_Rd_)  _SetLink(_Rd_);
+
+	// Jak GOAL call
+	if (_Rs_ == GOAL_FUNCTION_REG)
+	{
+		//Console.WriteLn("GOAL CALL TO #x%x", temp);
+		if (!goalNoFuncsP() && goalTopFunc()->func_ptr == temp)
+		{
+			goalAnalyzeFunc(goalTopFunc());
+			goalPopFunc();
+		}
+	}
 
 	doBranch(temp);
 }

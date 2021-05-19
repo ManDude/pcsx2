@@ -475,6 +475,7 @@ static __fi void frameLimit()
 	frameLimitUpdateCore();
 }
 
+#include "JakGoalDebugInspect.h"
 static __fi void VSyncStart(u32 sCycle)
 {
 #ifndef DISABLE_RECORDING
@@ -499,6 +500,11 @@ static __fi void VSyncStart(u32 sCycle)
 
 	CpuVU0->Vsync();
 	CpuVU1->Vsync();
+
+	if (g_FrameCount % (50 * 1))
+	{
+		goalWriteAllInfo();
+	}
 
 	hwIntcIrq(INTC_VBLANK_S);
 	psxVBlankStart();

@@ -136,6 +136,8 @@ extern void mmap_ResetBlockTracking();
 #define memWrite16 vtlb_memWrite<mem16_t>
 #define memWrite32 vtlb_memWrite<mem32_t>
 
+#define memGetPtr vtlb_memGetPtr
+
 static __fi void memRead64(u32 mem, mem64_t* out)	{ vtlb_memRead64(mem, out); }
 static __fi void memRead64(u32 mem, mem64_t& out)	{ vtlb_memRead64(mem, &out); }
 

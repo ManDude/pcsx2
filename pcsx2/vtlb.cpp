@@ -315,6 +315,20 @@ template void vtlb_memWrite<mem8_t>(u32 mem, mem8_t data);
 template void vtlb_memWrite<mem16_t>(u32 mem, mem16_t data);
 template void vtlb_memWrite<mem32_t>(u32 mem, mem32_t data);
 
+uptr __fastcall vtlb_memGetPtr(u32 mem)
+{
+	auto vmv = vtlbdata.vmap[mem >> VTLB_PAGE_BITS];
+
+	if (!vmv.isHandler(mem))
+	{
+		return vmv.assumePtr(mem);
+	}
+	else
+	{
+		return (uptr)nullptr;
+	}
+}
+
 // --------------------------------------------------------------------------------------
 //  TLB Miss / BusError Handlers
 // --------------------------------------------------------------------------------------

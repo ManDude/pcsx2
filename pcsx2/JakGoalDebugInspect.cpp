@@ -1,0 +1,192 @@
+#include "PrecompiledHeader.h"
+#include "JakGoalDebugInspect.h"
+#include "Memory.h"
+#include "Counters.h"
+#include <cstdio>
+
+const char* goalMethodNames[9] = {
+	"new",
+	"delete",
+	"print",
+	"inspect",
+	"length",
+	"asize-of",
+	"copy",
+	"relocate",
+	"memusage"
+};
+
+namespace
+{
+	std::stack<GoalFuncInfo*> goalFuncStack;
+	std::unordered_map<const char*, std::array<GoalFuncInfo*, 128>*> goalTypeMethods;
+}
+
+const char* goalGetSymName(u16 sym)
+{
+	const u32 addr = cpuRegs.GPR.r[GOAL_SYMTABLE_REG].UL[0] + (s16)sym;
+
+	return (const char*)memGetPtr(memRead32(addr + 0xff38) + 4);
+}
+
+u16 goalGetSymFromPtr(u32 ptr) noexcept(true)
+{
+	return (u16)(ptr - cpuRegs.GPR.r[GOAL_SYMTABLE_REG].UL[0]);
+}
+
+const char* goalGetSymNameFromPtr(u32 ptr)
+{
+	return goalGetSymName(goalGetSymFromPtr(memRead32(ptr)));
+}
+
+uptr goalGetSymValFromName(const char* name)
+{
+	uptr symTableFull = cpuRegs.GPR.r[GOAL_SYMTABLE_REG].UL[0] - 0x8000;
+
+	for (auto s = symTableFull; s < symTableFull + 0xff38; s += 8)
+	{
+		u32 sym_name_ptr = memRead32(s + 0xff38);
+		if (sym_name_ptr == 0)
+			continue;
+		const char* sym_name = (const char*)memGetPtr(sym_name_ptr);
+		if (!strncmp(sym_name, name, strlen(name)+1))
+		{
+			return memGetPtr(memRead32(s));
+		}
+	}
+	return NULL;
+}
+
+bool oddeven = 0;
+void goalWriteAllInfo()
+{
+	FILE* file = fopen(oddeven ? "method_info1.txt" : "method_info0.txt", "w");
+	oddeven = !oddeven;
+	for (auto& type : goalTypeMethods)
+	{
+		fprintf(file, "[TYPE] %s\n", type.first);
+		for (int i = 0; i < 128; ++i)
+		{
+			auto func = type.second->at(i);
+			if (func != nullptr)
+			{
+				fprintf(file, "  [METHOD %3d] args est: %d (%s, %s, %s, %s, %s, %s, %s, %s)\n", i, func->arg_count_estimate,
+					func->arg_types[0],
+					func->arg_types[1],
+					func->arg_types[2],
+					func->arg_types[3],
+					func->arg_types[4],
+					func->arg_types[5],
+					func->arg_types[6],
+					func->arg_types[7]
+				);
+			}
+		}
+	}
+	fclose(file);
+}
+
+void goalPushFunc(GoalFuncInfo* func)
+{
+	goalFuncStack.push(func);
+}
+
+void goalPopFunc() noexcept(true)
+{
+	goalFuncStack.pop();
+}
+
+GoalFuncInfo* goalTopFunc() noexcept(true)
+{
+	return goalFuncStack.top();
+}
+
+bool goalNoFuncsP() noexcept(true)
+{
+	return goalFuncStack.empty();
+}
+
+void goalAnalyzeFunc(GoalFuncInfo* func)
+{
+	func->arg_count_estimate = 0;
+	func->reg_changed = 0;
+	func->arg_data[0] = cpuRegs.GPR.r[GOAL_FUNCARG0_REG].UQ;
+	func->arg_data[1] = cpuRegs.GPR.r[GOAL_FUNCARG1_REG].UQ;
+	func->arg_data[2] = cpuRegs.GPR.r[GOAL_FUNCARG2_REG].UQ;
+	func->arg_data[3] = cpuRegs.GPR.r[GOAL_FUNCARG3_REG].UQ;
+	func->arg_data[4] = cpuRegs.GPR.r[GOAL_FUNCARG4_REG].UQ;
+	func->arg_data[5] = cpuRegs.GPR.r[GOAL_FUNCARG5_REG].UQ;
+	func->arg_data[6] = cpuRegs.GPR.r[GOAL_FUNCARG6_REG].UQ;
+	func->arg_data[7] = cpuRegs.GPR.r[GOAL_FUNCARG7_REG].UQ;
+
+	for (int i = 0; i < 8; ++i)
+	{
+		if (func->arg_data[i] != func->reg_data[i])
+		{
+			func->reg_changed |= 1 << i;
+			if (i+1 > func->arg_count_estimate)
+				func->arg_count_estimate = i+1;
+		}
+	}
+
+	uptr symTableFull = cpuRegs.GPR.r[GOAL_SYMTABLE_REG].UL[0] - 0x8000;
+	uptr symTableEnd = symTableFull + 0xff38;
+	auto typeLookupFunc = [symTableFull](u32 ptr) {
+		if ((ptr & 0b111) != 4)
+			return false;
+		uptr s = symTableFull;
+		while (s < symTableFull + 0xff38)
+		{
+			if (memRead32(s) == ptr)
+				return true;
+			s += 8;
+		}
+		return false;
+	};
+
+	for (int i = 0; i < 8; ++i)
+	{
+		func->arg_types[i] = "(not-basic)";
+		if (func->arg_data[i].hi == 0)
+		{
+			u64 ref = func->arg_data[i].lo;
+			if (ref >= symTableFull && ref < symTableEnd)
+			{
+				const char* symbol_name = goalGetSymName(ref - cpuRegs.GPR.r[GOAL_SYMTABLE_REG].UL[0]);
+				char buf[256];
+				sprintf(buf, "'%s", symbol_name);
+				if (func->arg_types[i][0] == '\'')
+				{
+					free((void*)func->arg_types[i]);
+				}
+				func->arg_types[i] = strdup(buf);
+			}
+			else if ((ref & 0b1111) == 4 && ref >= symTableFull && ref < 0x2000000)
+			{
+				u32 type_ptr = memRead32(ref-4);
+				if (typeLookupFunc(type_ptr))
+				{
+					func->arg_types[i] = goalGetSymNameFromPtr(type_ptr);
+				}
+			}
+		}
+	}
+}
+
+void goalValidateTypeMethods(const char* name)
+{
+	if (goalTypeMethods.find(name) == goalTypeMethods.end())
+	{
+		goalTypeMethods.insert_or_assign(name, new std::array<GoalFuncInfo*, 128>{nullptr});
+	}
+}
+
+GoalFuncInfo* goalGetTypeMethod(const char* name, u32 m)
+{
+	return goalTypeMethods.at(name)->at(m);
+}
+
+void goalSetTypeMethod(const char* name, u32 m, GoalFuncInfo* func)
+{
+	goalTypeMethods.at(name)->at(m) = func;
+}

@@ -15,6 +15,7 @@ const char* goalMethodNames[9] = {
 	"relocate",
 	"memusage"
 };
+bool goalWriteP = false;
 
 namespace
 {
@@ -170,6 +171,12 @@ void goalAnalyzeFunc(GoalFuncInfo* func)
 				}
 			}
 		}
+	}
+
+	if (goalWriteP)
+	{
+		goalWriteAllInfo();
+		goalWriteP = false;
 	}
 }
 

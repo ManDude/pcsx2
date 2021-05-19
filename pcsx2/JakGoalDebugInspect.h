@@ -19,6 +19,7 @@ constexpr int GOAL_SYMTABLE_REG = 23; // s7/r23
 constexpr int GOAL_FUNCTION_REG = 25; // t9/r25
 
 extern const char* goalMethodNames[9];
+extern bool goalWriteP;
 
 const char* goalGetSymName(u16 sym);
 u16 goalGetSymFromPtr(u32 ptr) noexcept(true);

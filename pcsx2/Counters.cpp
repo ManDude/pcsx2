@@ -503,7 +503,7 @@ static __fi void VSyncStart(u32 sCycle)
 
 	if (g_FrameCount % (50 * 1))
 	{
-		goalWriteAllInfo();
+		goalWriteP = true;
 	}
 
 	hwIntcIrq(INTC_VBLANK_S);

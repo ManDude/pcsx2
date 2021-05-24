@@ -174,7 +174,7 @@ void goalAnalyzeFunc(GoalFuncInfo* func)
 		func->arg_is_value[i] = true;
 		if (func->arg_data[i].hi == 0)
 		{
-			u64 ref = func->arg_data[i].lo;
+			u64 ref = i == 0 ? func->arg_data[i]._u32[0] : func->arg_data[i].lo;
 			if (ref >= symTableFull && ref < symTableEnd)
 			{
 				const char* symbol_name = goalGetSymName(ref - cpuRegs.GPR.r[GOAL_SYMTABLE_REG].UL[0]);

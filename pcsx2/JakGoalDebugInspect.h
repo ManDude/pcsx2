@@ -33,6 +33,8 @@ typedef struct GoalFuncInfo
 	u32 arg_count_estimate = 0;
 	u128 reg_data[8];
 	u128 arg_data[8];
+	bool arg_is_symbol[8];
+	bool arg_is_value[8];
 	const char* arg_types[8] = {nullptr};
 
 	GoalFuncInfo(u32 l_func_ptr) noexcept(true)

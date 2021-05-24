@@ -62,6 +62,8 @@ bool oddeven = 0;
 void goalWriteAllInfo()
 {
 	FILE* file = fopen(oddeven ? "method_info1.txt" : "method_info0.txt", "w");
+	if (file == NULL)
+		return;
 	oddeven = !oddeven;
 	for (auto& type : goalTypeMethods)
 	{
@@ -71,16 +73,36 @@ void goalWriteAllInfo()
 			auto func = type.second->at(i);
 			if (func != nullptr)
 			{
-				fprintf(file, "  [METHOD %3d] args est: %d (%s, %s, %s, %s, %s, %s, %s, %s)\n", i, func->arg_count_estimate,
-					func->arg_types[0],
-					func->arg_types[1],
-					func->arg_types[2],
-					func->arg_types[3],
-					func->arg_types[4],
-					func->arg_types[5],
-					func->arg_types[6],
-					func->arg_types[7]
-				);
+				auto fprintf_arg_func = [func, file](int arg) {
+					if (func->arg_is_symbol[arg])
+					{
+						fprintf(file, "'%s", func->arg_types[arg]);
+					}
+					else if (!func->arg_is_value[arg])
+					{
+						fprintf(file, "%s", func->arg_types[arg]);
+					}
+					else
+					{
+						if (func->arg_data[arg].hi == 0)
+						{
+							fprintf(file, "#x%x", func->arg_data[arg].lo);
+						}
+						else
+						{
+							fprintf(file, "#x%llx%llx", func->arg_data[arg].hi, func->arg_data[arg].lo);
+						}
+					}
+				};
+				fprintf(file, "  [METHOD %3d] args est: %d (", i, func->arg_count_estimate);
+				fprintf_arg_func(0); fprintf(file, ", ");
+				fprintf_arg_func(1); fprintf(file, ", ");
+				fprintf_arg_func(2); fprintf(file, ", ");
+				fprintf_arg_func(3); fprintf(file, ", ");
+				fprintf_arg_func(4); fprintf(file, ", ");
+				fprintf_arg_func(5); fprintf(file, ", ");
+				fprintf_arg_func(6); fprintf(file, ", ");
+				fprintf_arg_func(7); fprintf(file, ")\n");
 			}
 		}
 	}
@@ -148,27 +170,26 @@ void goalAnalyzeFunc(GoalFuncInfo* func)
 	for (int i = 0; i < 8; ++i)
 	{
 		func->arg_types[i] = "(not-basic)";
+		func->arg_is_symbol[i] = false;
+		func->arg_is_value[i] = true;
 		if (func->arg_data[i].hi == 0)
 		{
 			u64 ref = func->arg_data[i].lo;
 			if (ref >= symTableFull && ref < symTableEnd)
 			{
 				const char* symbol_name = goalGetSymName(ref - cpuRegs.GPR.r[GOAL_SYMTABLE_REG].UL[0]);
-				char buf[256];
-				sprintf(buf, "'%s", symbol_name);
-				if (func->arg_types[i][0] == '\'')
-				{
-					free((void*)func->arg_types[i]);
-				}
-				func->arg_types[i] = strdup(buf);
+				func->arg_is_symbol[i] = true;
+				func->arg_is_value[i] = false;
+				func->arg_types[i] = strdup(symbol_name);
 			}
-			else if ((ref & 0b1111) == 4 && ref >= symTableFull && ref < 0x2000000)
+			else if ((ref & 0b111) == 4 && ref >= symTableFull && ref < 0x2000000)
 			{
 				u32 type_ptr = memRead32(ref-4);
 				if (typeLookupFunc(type_ptr))
 				{
 					func->arg_types[i] = goalGetSymNameFromPtr(type_ptr);
 				}
+				func->arg_is_value[i] = false;
 			}
 		}
 	}

@@ -1,5 +1,5 @@
 /*  PCSX2 - PS2 Emulator for PCs
- *  Copyright (C) 2002-2010  PCSX2 Dev Team
+ *  Copyright (C) 2002-2021  PCSX2 Dev Team
  *
  *  PCSX2 is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU Lesser General Public License as published by the Free Software Found-
@@ -66,9 +66,10 @@ static void rcntWmode(int index, u32 value);
 static void rcntWtarget(int index, u32 value);
 static void rcntWhold(int index, u32 value);
 
-static bool IsAnalogVideoMode()
+// For Analog/Double Strike and Interlace modes
+static bool IsInterlacedVideoMode()
 {
-	return (gsVideoMode == GS_VideoMode::PAL || gsVideoMode == GS_VideoMode::NTSC || gsVideoMode == GS_VideoMode::DVD_NTSC || gsVideoMode == GS_VideoMode::DVD_PAL);
+	return (gsVideoMode == GS_VideoMode::PAL || gsVideoMode == GS_VideoMode::NTSC || gsVideoMode == GS_VideoMode::DVD_NTSC || gsVideoMode == GS_VideoMode::DVD_PAL || gsVideoMode == GS_VideoMode::HDTV_1080I);
 }
 
 void rcntReset(int index) {
@@ -182,28 +183,28 @@ static u64 m_iStart=0;
 
 struct vSyncTimingInfo
 {
-	Fixed100 Framerate;		// frames per second (8 bit fixed)
+	double Framerate;       // frames per second (8 bit fixed)
 	GS_VideoMode VideoMode; // used to detect change (interlaced/progressive)
-	u32 Render;				// time from vblank end to vblank start (cycles)
-	u32 Blank;				// time from vblank start to vblank end (cycles)
+	u32 Render;             // time from vblank end to vblank start (cycles)
+	u32 Blank;              // time from vblank start to vblank end (cycles)
 
-	u32 GSBlank;			// GS CSR is swapped roughly 3.5 hblank's after vblank start
+	u32 GSBlank;            // GS CSR is swapped roughly 3.5 hblank's after vblank start
 
-	u32 hSyncError;			// rounding error after the duration of a rendered frame (cycles)
-	u32 hRender;			// time from hblank end to hblank start (cycles)
-	u32 hBlank;				// time from hblank start to hblank end (cycles)
-	u32 hScanlinesPerFrame;	// number of scanlines per frame (525/625 for NTSC/PAL)
+	u32 hSyncError;         // rounding error after the duration of a rendered frame (cycles)
+	u32 hRender;            // time from hblank end to hblank start (cycles)
+	u32 hBlank;             // time from hblank start to hblank end (cycles)
+	u32 hScanlinesPerFrame; // number of scanlines per frame (525/625 for NTSC/PAL)
 };
 
 
 static vSyncTimingInfo vSyncInfo;
 
 
-static void vSyncInfoCalc(vSyncTimingInfo* info, Fixed100 framesPerSecond, u32 scansPerFrame)
+static void vSyncInfoCalc(vSyncTimingInfo* info, double framesPerSecond, u32 scansPerFrame)
 {
-	// I use fixed point math here to have strict control over rounding errors. --air
+	constexpr double clock = static_cast<double>(PS2CLK);
 
-	u64 Frame = ((u64)PS2CLK * 1000000ULL) / (framesPerSecond * 100).ToIntRounded();
+	const u64 Frame = clock * 10000ULL / framesPerSecond;
 	const u64 Scanline = Frame / scansPerFrame;
 
 	// There are two renders and blanks per frame. This matches the PS2 test results.
@@ -225,7 +226,7 @@ static void vSyncInfoCalc(vSyncTimingInfo* info, Fixed100 framesPerSecond, u32 s
 	u64 hBlank = Scanline / 2;
 	u64 hRender = Scanline - hBlank;
 
-	if (!IsAnalogVideoMode())
+	if (!IsInterlacedVideoMode())
 	{
 		hBlank /= 2;
 		hRender /= 2;
@@ -249,7 +250,7 @@ static void vSyncInfoCalc(vSyncTimingInfo* info, Fixed100 framesPerSecond, u32 s
 	if ((hBlank % 10000) >= 5000) info->hBlank++;
 
 	// Calculate accumulative hSync rounding error per half-frame:
-	if (IsAnalogVideoMode()) // gets off the chart in that mode
+	if (IsInterlacedVideoMode()) // gets off the chart in that mode
 	{
 		u32 hSyncCycles = ((info->hRender + info->hBlank) * scansPerFrame) / 2;
 		u32 vSyncCycles = (info->Render + info->Blank);
@@ -280,7 +281,7 @@ const char* ReportVideoMode()
 	}
 }
 
-Fixed100 GetVerticalFrequency()
+double GetVerticalFrequency()
 {
 	// Note about NTSC/PAL "double strike" modes:
 	// NTSC and PAL can be configured in such a way to produce a non-interlaced signal.
@@ -306,7 +307,7 @@ Fixed100 GetVerticalFrequency()
 	switch (gsVideoMode)
 	{
 	case GS_VideoMode::Uninitialized: // SetGsCrt hasn't executed yet, give some temporary values.
-		return 60;
+		return 60.00;
 	case GS_VideoMode::PAL:
 	case GS_VideoMode::DVD_PAL:
 		return gsIsInterlaced ? EmuConfig.GS.FrameratePAL : EmuConfig.GS.FrameratePAL - 0.24f;
@@ -320,7 +321,7 @@ Fixed100 GetVerticalFrequency()
 	case GS_VideoMode::HDTV_720P:
 	case GS_VideoMode::SDTV_576P:
 	case GS_VideoMode::VESA:
-		return 60;
+		return 60.00;
 	default:
 		// Pass NTSC vertical frequency value when unknown video mode is detected.
 		return FRAMERATE_NTSC * 2;
@@ -335,84 +336,75 @@ u32 UpdateVSyncRate()
 	//  the GS's output circuit.  It is the same regardless if the GS is outputting interlace
 	//  or progressive scan content. 
 
-	Fixed100	framerate = GetVerticalFrequency() / 2;
-	u32			scanlines = 0;
-	bool		isCustom  = false;
+	const double vertical_frequency = GetVerticalFrequency();
 
-	//Set up scanlines and framerate based on video mode
+	const double frames_per_second = vertical_frequency / 2.0;
+	const double frame_limit = frames_per_second * EmuConfig.GS.LimitScalar;
+
+	const double tick_rate = GetTickFrequency() / 2.0;
+	const s64 ticks = static_cast<s64>(tick_rate / std::max(frame_limit, 1.0));
+
+	u32 total_scanlines = 0;
+	bool custom  = false;
+
 	switch (gsVideoMode)
 	{
 	case GS_VideoMode::Uninitialized: // SYSCALL instruction hasn't executed yet, give some temporary values.
-		scanlines = SCANLINES_TOTAL_NTSC;
+		total_scanlines = SCANLINES_TOTAL_NTSC;
 		break;
-
 	case GS_VideoMode::PAL:
 	case GS_VideoMode::DVD_PAL:
-		isCustom = (EmuConfig.GS.FrameratePAL != 50.0);
-		scanlines = SCANLINES_TOTAL_PAL;
-		if (!gsIsInterlaced) scanlines += 3;
+		custom = (EmuConfig.GS.FrameratePAL != 50.0);
+		total_scanlines = SCANLINES_TOTAL_PAL;
 		break;
-
 	case GS_VideoMode::NTSC:
 	case GS_VideoMode::DVD_NTSC:
-		isCustom = (EmuConfig.GS.FramerateNTSC != 59.94);
-		scanlines = SCANLINES_TOTAL_NTSC;
-		if (!gsIsInterlaced) scanlines += 1;
+		custom = (EmuConfig.GS.FramerateNTSC != 59.94);
+		total_scanlines = SCANLINES_TOTAL_NTSC;
 		break;
-
 	case GS_VideoMode::SDTV_480P:
 	case GS_VideoMode::SDTV_576P:
-	case GS_VideoMode::HDTV_1080P:
-	case GS_VideoMode::HDTV_1080I:
 	case GS_VideoMode::HDTV_720P:
 	case GS_VideoMode::VESA:
-		scanlines = SCANLINES_TOTAL_NTSC;
+		total_scanlines = SCANLINES_TOTAL_NTSC;
 		break;
-
+	case GS_VideoMode::HDTV_1080P:
+	case GS_VideoMode::HDTV_1080I:
+		total_scanlines = SCANLINES_TOTAL_1080;
+		break;
 	case GS_VideoMode::Unknown:
 	default:
-		// Falls through to default when unidentified mode parameter of SetGsCrt is detected.
-		// For Release builds, keep using the NTSC timing values when unknown video mode is detected.
-		// Assert will be triggered for debug/dev builds.
-		scanlines = SCANLINES_TOTAL_NTSC;
+		total_scanlines = SCANLINES_TOTAL_NTSC;
 		Console.Error("PCSX2-Counters: Unknown video mode detected");
 		pxAssertDev(false , "Unknown video mode detected via SetGsCrt");
 	}
 
-	bool ActiveVideoMode = gsVideoMode != GS_VideoMode::Uninitialized;
-	if (vSyncInfo.Framerate != framerate || vSyncInfo.VideoMode != gsVideoMode)
+	const bool video_mode_initialized = gsVideoMode != GS_VideoMode::Uninitialized;
+
+	if (vSyncInfo.Framerate != frames_per_second || vSyncInfo.VideoMode != gsVideoMode)
 	{
 		vSyncInfo.VideoMode = gsVideoMode;
-		vSyncInfoCalc( &vSyncInfo, framerate, scanlines );
-		if(ActiveVideoMode)
-			Console.WriteLn( Color_Green, "(UpdateVSyncRate) Mode Changed to %s.", ReportVideoMode());
-		
-		if( isCustom && ActiveVideoMode)
-			Console.Indent().WriteLn( Color_StrongGreen, "... with user configured refresh rate: %.02f Hz", 2 * framerate.ToFloat() );
 
-		hsyncCounter.CycleT = vSyncInfo.hRender;	// Amount of cycles before the counter will be updated
-		vsyncCounter.CycleT = vSyncInfo.Render;		// Amount of cycles before the counter will be updated
+		vSyncInfoCalc(&vSyncInfo, frames_per_second, total_scanlines);
+
+		if (video_mode_initialized)
+			Console.WriteLn(Color_Green, "(UpdateVSyncRate) Mode Changed to %s.", ReportVideoMode());
+		
+		if (custom && video_mode_initialized)
+			Console.Indent().WriteLn(Color_StrongGreen, "... with user configured refresh rate: %.02f Hz", vertical_frequency);
+
+		hsyncCounter.CycleT = vSyncInfo.hRender; // Amount of cycles before the counter will be updated
+		vsyncCounter.CycleT = vSyncInfo.Render;  // Amount of cycles before the counter will be updated
 
 		cpuRcntSet();
 	}
 
-	Fixed100 fpslimit = framerate *
-		( pxAssert( EmuConfig.GS.LimitScalar > 0 ) ? EmuConfig.GS.LimitScalar : 1.0 );
-
-	//s64 debugme = GetTickFrequency() / 3000;
-	s64	ticks = (GetTickFrequency()*500) / (fpslimit * 1000).ToIntRounded();
-
-	if( m_iTicks != ticks )
-	{
+	if (m_iTicks != ticks)
 		m_iTicks = ticks;
-		gsOnModeChanged( vSyncInfo.Framerate, m_iTicks );
-		if (ActiveVideoMode)
-			Console.WriteLn( Color_Green, "(UpdateVSyncRate) FPS Limit Changed : %.02f fps", fpslimit.ToFloat()*2 );
-	}
 
 	m_iStart = GetCPUTicks();
 
-	return (u32)m_iTicks;
+	return static_cast<u32>(m_iTicks);
 }
 
 void frameLimitReset()
@@ -439,9 +431,9 @@ static __fi void frameLimit()
 		return;
 	}
 
-	u64 uExpectedEnd	= m_iStart + m_iTicks;	// Compute when we would expect this frame to end, assuming everything goes perfectly perfect. 
-	u64 iEnd			= GetCPUTicks();		// The current tick we actually stopped on.
-	s64 sDeltaTime		= iEnd - uExpectedEnd;	// The diff between when we stopped and when we expected to.
+	const u64 uExpectedEnd = m_iStart + m_iTicks;  // Compute when we would expect this frame to end, assuming everything goes perfectly perfect.
+	const u64 iEnd = GetCPUTicks();                // The current tick we actually stopped on.
+	const s64 sDeltaTime = iEnd - uExpectedEnd;    // The diff between when we stopped and when we expected to.
 
 	// If frame ran too long...
 	if (sDeltaTime >= m_iTicks)
@@ -522,7 +514,11 @@ static __fi void VSyncStart(u32 sCycle)
 
 	//cpuRegs.eCycle[30] = 2;
 
-	// Should no longer be required (Refraction)
+	// Update 08/2021: The only game I know to require this kind of thing as of 1.7.0 is Penny Racers/Gadget Racers (which has a patch to avoid the problem and others)
+	// These games have a tight loop checking INTC_STAT waiting for the VBLANK Start, however the game also has a VBLANK Hander which clears it.
+	// Therefore, there needs to be some delay in order for it to see the interrupt flag before the interrupt is acknowledged, likely helped on real hardware by the pipelines.
+	// Without the patch and fixing this, the games have other issues, so I'm not going to rush to fix it.
+	// Refraction
 }
 
 static __fi void GSVSync()
@@ -654,23 +650,22 @@ __fi void rcntUpdate_vSync()
 
 static __fi void _cpuTestTarget( int i )
 {
-	if (counters[i].count < counters[i].target) return;
+	if (counters[i].count < counters[i].target)
+		return;
 
 	if(counters[i].mode.TargetInterrupt) {
-
 		EECNT_LOG("EE Counter[%d] TARGET reached - mode=%x, count=%x, target=%x", i, counters[i].mode, counters[i].count, counters[i].target);
 		if (!counters[i].mode.TargetReached)
 		{
 			counters[i].mode.TargetReached = 1;
 			hwIntcIrq(counters[i].interrupt);
 		}
-		// The PS2 only resets if the interrupt is enabled - Tested on PS2
-		if (counters[i].mode.ZeroReturn)
-			counters[i].count -= counters[i].target; // Reset on target
-		else
-			counters[i].target |= EECNT_FUTURE_TARGET;
 	}
-	else counters[i].target |= EECNT_FUTURE_TARGET;
+
+	if (counters[i].mode.ZeroReturn)
+		counters[i].count -= counters[i].target; // Reset on target
+	else
+		counters[i].target |= EECNT_FUTURE_TARGET; // OR with future target to prevent a retrigger
 }
 
 static __fi void _cpuTestOverflow( int i )

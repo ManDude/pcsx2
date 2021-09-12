@@ -665,17 +665,12 @@ public:
 
 #ifdef _MSC_VER
 //internal
-extern SndOutModule* WaveOut;
 extern SndOutModule* XAudio2Out;
 #endif
 #if defined(SPU2X_PORTAUDIO)
 extern SndOutModule* PortaudioOut;
 #endif
 extern SndOutModule* const SDLOut;
-#ifdef __linux__
-extern SndOutModule* AlsaOut;
-#endif
-
 extern SndOutModule* mods[];
 
 // =====================================================================================================

@@ -1,5 +1,5 @@
 /*  PCSX2 - PS2 Emulator for PCs
- *  Copyright (C) 2002-2010  PCSX2 Dev Team
+ *  Copyright (C) 2002-2021  PCSX2 Dev Team
  *
  *  PCSX2 is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU Lesser General Public License as published by the Free Software Found-
@@ -111,31 +111,26 @@ void Panels::FramelimiterPanel::ApplyConfigToGui( AppConfig& configToApply, int 
 	const AppConfig::FramerateOptions& appfps( configToApply.Framerate );
 	const Pcsx2Config::GSOptions& gsconf( configToApply.EmuOptions.GS );
 
-	if( ! (flags & AppConfig::APPLY_FLAG_FROM_PRESET) ){	//Presets don't control these: only change if config doesn't come from preset.
+	if( ! (flags & AppConfig::APPLY_FLAG_FROM_PRESET) )
+	{	//Presets don't control these: only change if config doesn't come from preset.
 	
-		m_check_LimiterDisable->SetValue( !gsconf.FrameLimitEnable );
+		m_check_LimiterDisable->SetValue(!gsconf.FrameLimitEnable);
 
-		m_spin_TurboPct		->SetValue( appfps.TurboScalar.Raw );
-		m_spin_SlomoPct		->SetValue( appfps.SlomoScalar.Raw );
+		m_spin_TurboPct->SetValue(appfps.TurboScalar * 100.0);
+		m_spin_SlomoPct->SetValue(appfps.SlomoScalar * 100.0);
 
-		m_spin_TurboPct		->Enable( 1 );
-		m_spin_SlomoPct		->Enable( 1 );
+		m_spin_TurboPct->Enable(true);
+		m_spin_SlomoPct->Enable(true);
 	}
 
-	m_text_BaseNtsc		->ChangeValue( gsconf.FramerateNTSC.ToString() );
-	m_text_BasePal		->ChangeValue( gsconf.FrameratePAL.ToString() );
+	m_text_BaseNtsc->ChangeValue(wxString::FromDouble(gsconf.FramerateNTSC, 2));
+	m_text_BasePal->ChangeValue(wxString::FromDouble(gsconf.FrameratePAL, 2));
 
-	m_spin_NominalPct	->SetValue( appfps.NominalScalar.Raw );
-	m_spin_NominalPct	->Enable(!configToApply.EnablePresets);
+	m_spin_NominalPct->SetValue(appfps.NominalScalar * 100.0);
+	m_spin_NominalPct->Enable(!configToApply.EnablePresets);
 
-	// Vsync timing controls only on devel builds / via manual ini editing
-#ifdef PCSX2_DEVBUILD
-	m_text_BaseNtsc		->Enable(!configToApply.EnablePresets);
-	m_text_BasePal		->Enable(!configToApply.EnablePresets);
-#else
-	m_text_BaseNtsc		->Enable( 0 );
-	m_text_BasePal		->Enable( 0 );
-#endif
+	m_text_BaseNtsc->Enable(!configToApply.EnablePresets);
+	m_text_BasePal->Enable(!configToApply.EnablePresets);
 }
 
 void Panels::FramelimiterPanel::Apply()
@@ -145,23 +140,20 @@ void Panels::FramelimiterPanel::Apply()
 
 	gsconf.FrameLimitEnable	= !m_check_LimiterDisable->GetValue();
 
-	appfps.NominalScalar.Raw	= m_spin_NominalPct	->GetValue();
-	appfps.TurboScalar.Raw		= m_spin_TurboPct	->GetValue();
-	appfps.SlomoScalar.Raw		= m_spin_SlomoPct	->GetValue();
+	appfps.NominalScalar = static_cast<double>(m_spin_NominalPct->GetValue()) / 100.0;
+	appfps.TurboScalar = static_cast<double>(m_spin_TurboPct->GetValue()) / 100.0;
+	appfps.SlomoScalar = static_cast<double>(m_spin_SlomoPct->GetValue()) / 100.0;
 
-	try {
-		gsconf.FramerateNTSC	= Fixed100::FromString( m_text_BaseNtsc->GetValue() );
-		gsconf.FrameratePAL		= Fixed100::FromString( m_text_BasePal->GetValue() );
-	}
-	catch( Exception::ParseError& )
-	{
-		throw Exception::CannotApplySettings( this )
-			.SetDiagMsg(pxsFmt(
-				L"Error while parsing either NTSC or PAL framerate settings.\n\tNTSC Input = %s\n\tPAL Input  = %s",
-				WX_STR(m_text_BaseNtsc->GetValue()), WX_STR(m_text_BasePal->GetValue())
-			) )
-			.SetUserMsg(_t("Error while parsing either NTSC or PAL framerate settings.  Settings must be valid floating point numerics."));
-	}
+	wxString ntsc_framerate_string = m_text_BaseNtsc->GetValue();
+	wxString pal_framerate_string = m_text_BasePal->GetValue();
+
+	double framerate = 0.0;
+
+	if (ntsc_framerate_string.ToDouble(&framerate))
+		gsconf.FramerateNTSC = framerate;
+
+	if (pal_framerate_string.ToDouble(&framerate))
+		gsconf.FrameratePAL = framerate;
 
 	appfps.SanityCheck();
 
@@ -355,7 +347,7 @@ void Panels::VideoPanel::Defaults_Click(wxCommandEvent& evt)
 
 void Panels::VideoPanel::OnOpenWindowSettings( wxCommandEvent& evt )
 {
-	AppOpenDialog<Dialogs::ComponentsConfigDialog>( this );
+	AppOpenDialog<Dialogs::SysConfigDialog>( this );
 
 	// don't evt.skip, this prevents the Apply button from being activated. :)
 }

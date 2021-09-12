@@ -20,8 +20,8 @@
 #include <wx/intl.h>
 #include <wx/log.h>
 #include <wx/filename.h>
-#include "Utilities/pxStreams.h"
-#include "Utilities/Console.h"
+#include "common/pxStreams.h"
+#include "common/Console.h"
 #include <stdio.h>
 #include <assert.h>
 
@@ -34,6 +34,7 @@
 #include <queue>
 
 #include "App.h"
+#include "SaveState.h"
 
 typedef struct
 {
@@ -53,6 +54,6 @@ u8 PADstartPoll(int pad);
 u8 PADpoll(u8 value);
 keyEvent* PADkeyEvent();
 void PADconfigure();
-s32 PADfreeze(int mode, freezeData* data);
+s32 PADfreeze(FreezeAction mode, freezeData* data);
 s32 PADsetSlot(u8 port, u8 slot);
 void PADsetSettingsDir(const char* dir);

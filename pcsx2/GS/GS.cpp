@@ -24,7 +24,7 @@
 #include "GSLzma.h"
 
 #include "AppCoreThread.h"
-#include "Utilities/pxStreams.h"
+#include "common/pxStreams.h"
 
 #ifdef _WIN32
 
@@ -419,9 +419,6 @@ int GSopen2(void** dsp, uint32 flags)
 
 	int retval = _GSopen(dsp, "", current_renderer);
 
-	if (s_gs != NULL)
-		s_gs->SetAspectRatio(0); // PCSX2 manages the aspect ratios
-
 	gsopen_done = true;
 
 	return retval;
@@ -675,19 +672,19 @@ void GSkeyEvent(GSKeyEventData* e)
 	}
 }
 
-int GSfreeze(int mode, freezeData* data)
+int GSfreeze(FreezeAction mode, freezeData* data)
 {
 	try
 	{
-		if (mode == FREEZE_SAVE)
+		if (mode == FreezeAction::Save)
 		{
 			return s_gs->Freeze(data, false);
 		}
-		else if (mode == FREEZE_SIZE)
+		else if (mode == FreezeAction::Size)
 		{
 			return s_gs->Freeze(data, true);
 		}
-		else if (mode == FREEZE_LOAD)
+		else if (mode == FreezeAction::Load)
 		{
 			return s_gs->Defrost(data);
 		}
@@ -866,6 +863,19 @@ void GSsetExclusive(int enabled)
 	}
 }
 
+bool GSGetFMVSwitch()
+{
+	return s_gs ? s_gs->GetFMVSwitch() : false;
+}
+
+void GSSetFMVSwitch(bool enabled)
+{
+	if (s_gs)
+	{
+		s_gs->SetFMVSwitch(enabled);
+	}
+}
+
 #if defined(__unix__) || defined(__APPLE__)
 
 inline unsigned long timeGetTime()
@@ -950,7 +960,7 @@ void GSReplay(char* lpszCmdLine, int renderer)
 		fd.data = new char[fd.size];
 		file->Read(fd.data, fd.size);
 
-		GSfreeze(FREEZE_LOAD, &fd);
+		GSfreeze(FreezeAction::Load, &fd);
 		delete[] fd.data;
 
 		file->Read(regs, 0x2000);
@@ -1511,17 +1521,14 @@ void GSApp::Init()
 	m_gs_interlace.push_back(GSSetting(6, "Blend bff", "slight blur, 1/2 fps"));
 	m_gs_interlace.push_back(GSSetting(7, "Automatic", "Default"));
 
-	m_gs_aspectratio.push_back(GSSetting(0, "Stretch", ""));
-	m_gs_aspectratio.push_back(GSSetting(1, "4:3", ""));
-	m_gs_aspectratio.push_back(GSSetting(2, "16:9", ""));
-
 	m_gs_upscale_multiplier.push_back(GSSetting(1, "Native", "PS2"));
 	m_gs_upscale_multiplier.push_back(GSSetting(2, "2x Native", "~720p"));
 	m_gs_upscale_multiplier.push_back(GSSetting(3, "3x Native", "~1080p"));
 	m_gs_upscale_multiplier.push_back(GSSetting(4, "4x Native", "~1440p 2K"));
-	m_gs_upscale_multiplier.push_back(GSSetting(5, "5x Native", "~1620p 3K"));
+	m_gs_upscale_multiplier.push_back(GSSetting(5, "5x Native", "~1620p"));
 	m_gs_upscale_multiplier.push_back(GSSetting(6, "6x Native", "~2160p 4K"));
-	m_gs_upscale_multiplier.push_back(GSSetting(8, "8x Native", "~2880p 5K"));
+	m_gs_upscale_multiplier.push_back(GSSetting(7, "7x Native", "~2520p"));
+	m_gs_upscale_multiplier.push_back(GSSetting(8, "8x Native", "~2880p"));
 
 	m_gs_max_anisotropy.push_back(GSSetting(0, "Off", "Default"));
 	m_gs_max_anisotropy.push_back(GSSetting(2, "2x", ""));
@@ -1604,7 +1611,7 @@ void GSApp::Init()
 #else
 	m_default_configuration["linux_replay"]                               = "1";
 #endif
-	m_default_configuration["aa1"]                                        = "0";
+	m_default_configuration["aa1"]                                        = "1";
 	m_default_configuration["accurate_date"]                              = "1";
 	m_default_configuration["accurate_blending_unit"]                     = "1";
 	m_default_configuration["AspectRatio"]                                = "1";
@@ -1614,7 +1621,6 @@ void GSApp::Init()
 	m_default_configuration["capture_threads"]                            = "4";
 	m_default_configuration["CaptureHeight"]                              = "480";
 	m_default_configuration["CaptureWidth"]                               = "640";
-	m_default_configuration["clut_load_before_draw"]                      = "0";
 	m_default_configuration["crc_hack_level"]                             = std::to_string(static_cast<int8>(CRCHackLevel::Automatic));
 	m_default_configuration["CrcHacksExclusions"]                         = "";
 	m_default_configuration["debug_glsl_shader"]                          = "0";

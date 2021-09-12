@@ -15,14 +15,9 @@
 
 #pragma once
 
+#include <dinput.h>
 #include <windows.h>
 #include <stdint.h>
-
-#if !defined(DIRECTINPUT_VERSION)
-#define DIRECTINPUT_VERSION 0x0800
-#endif
-
-#include <dinput.h>
 #include <atomic>
 #include <algorithm>
 #include <array>
@@ -74,6 +69,17 @@ namespace usb_pad
 			CID_R3,
 			CID_SELECT,
 			CID_START,
+			CID_BUTTON20,
+			CID_BUTTON21,
+			CID_BUTTON22,
+			CID_BUTTON23,
+			CID_BUTTON24,
+			CID_BUTTON25,
+			CID_BUTTON26,
+			CID_BUTTON27,
+			CID_BUTTON28,
+			CID_BUTTON29,
+			CID_BUTTON30,
 			CID_COUNT,
 		};
 

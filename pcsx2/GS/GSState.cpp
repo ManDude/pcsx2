@@ -44,7 +44,6 @@ GSState::GSState()
 	m_nativeres = theApp.GetConfigI("upscale_multiplier") == 1 || GLLoader::in_replayer;
 	m_mipmap = theApp.GetConfigI("mipmap");
 	m_NTSC_Saturation = theApp.GetConfigB("NTSC_Saturation");
-	m_clut_load_before_draw = theApp.GetConfigB("clut_load_before_draw");
 	if (theApp.GetConfigB("UserHacks"))
 	{
 		m_userhacks_auto_flush = theApp.GetConfigB("UserHacks_AutoFlush");
@@ -589,20 +588,10 @@ void GSState::GIFPackedRegHandlerNull(const GIFPackedReg* RESTRICT r)
 
 void GSState::GIFPackedRegHandlerRGBA(const GIFPackedReg* RESTRICT r)
 {
-#if _M_SSE >= 0x301
-
 	GSVector4i mask = GSVector4i::load(0x0c080400);
 	GSVector4i v = GSVector4i::load<false>(r).shuffle8(mask);
 
 	m_v.RGBAQ.u32[0] = (uint32)GSVector4i::store(v);
-
-#else
-
-	GSVector4i v = GSVector4i::load<false>(r) & GSVector4i::x000000ff();
-
-	m_v.RGBAQ.u32[0] = v.rgba32();
-
-#endif
 
 	m_v.RGBAQ.Q = m_q;
 }
@@ -1591,17 +1580,6 @@ void GSState::FlushPrim()
 	if (m_index.tail > 0)
 	{
 		GL_REG("FlushPrim ctxt %d", PRIM->CTXT);
-
-		// Some games (Harley Davidson/Virtua Fighter) do dirty trick with multiple contexts cluts
-		// In doubt, always reload the clut before a draw.
-		// Note: perf impact is likely slow enough as WriteTest will likely be false.
-		if (m_clut_load_before_draw)
-		{
-			if (m_mem.m_clut.WriteTest(m_context->TEX0, m_env.TEXCLUT))
-			{
-				m_mem.m_clut.Write(m_context->TEX0, m_env.TEXCLUT);
-			}
-		}
 
 		GSVertex buff[2];
 		s_n++;
@@ -2623,13 +2601,6 @@ void GSState::SetGameCRC(uint32 crc, int options)
 	m_options = options;
 	m_game = CRC::Lookup(m_crc_hack_level != CRCHackLevel::None ? crc : 0);
 	SetupCrcHack();
-
-	// Until we find a solution that work for all games.
-	// (if  a solution does exist)
-	if (m_game.title == CRC::HarleyDavidson)
-	{
-		m_clut_load_before_draw = true;
-	}
 }
 
 //

@@ -17,7 +17,7 @@
 
 #include <wx/wx.h>
 
-#include "EmbeddedImage.h"
+#include "common/EmbeddedImage.h"
 
 enum gui_img
 {

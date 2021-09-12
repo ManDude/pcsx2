@@ -30,6 +30,11 @@ static void TestClearVUs(u32 madr, u32 qwc, bool isWrite)
 {
 	if (madr >= 0x11000000 && (madr < 0x11010000))
 	{
+		// Sync the VU's if they're running, writing/reading from VU memory while they're running can be timing sensitive.
+		// Use Psychonauts for testing
+		CpuVU0->ExecuteBlock(0);
+		CpuVU1->ExecuteBlock(0);
+
 		if (madr < 0x11004000)
 		{
 			if(isWrite)
@@ -313,12 +318,13 @@ void SPRFROMinterrupt()
 					spr0ch.madr = dmacRegs.rbor.ADDR + (spr0ch.madr & dmacRegs.rbsr.RMSK);
 					//Console.WriteLn("mfifoGIFtransfer %x madr %x, tadr %x", gif->chcr._u32, gif->madr, gif->tadr);
 					hwMFIFOResume(mfifotransferred);
-					mfifotransferred = 0;
 					break;
 				}
 				default:
 					break;
 			}
+
+			mfifotransferred = 0;
 		}
 
 		return;
@@ -390,16 +396,8 @@ int  _SPR1chain()
 __fi void SPR1chain()
 {
 	int cycles = 0;
-	if(!CHECK_IPUWAITHACK)
-	{
-		cycles =  _SPR1chain() * BIAS;
-		CPU_INT(DMAC_TO_SPR, cycles);
-	}
-	else
-	{
-		 _SPR1chain();
-		CPU_INT(DMAC_TO_SPR, 8);
-	}
+	cycles =  _SPR1chain() * BIAS;
+	CPU_INT(DMAC_TO_SPR, cycles);
 }
 
 void _SPR1interleave()

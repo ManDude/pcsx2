@@ -24,8 +24,8 @@
 
 #include "System/RecTypes.h"
 
-#include "Utilities/MemsetFast.inl"
-#include "Utilities/Perf.h"
+#include "common/MemsetFast.inl"
+#include "common/Perf.h"
 
 
 // --------------------------------------------------------------------------------------
@@ -266,6 +266,10 @@ void SysLogMachineCaps()
 #endif
 
 	Console.Newline();
+
+#ifdef _WIN32
+	CheckIsUserOnHighPerfPowerPlan();
+#endif
 }
 
 template< typename CpuType >

@@ -19,10 +19,11 @@
 #include "MTVU.h"
 
 // Executes a Block based on EE delta time
-void BaseVUmicroCPU::ExecuteBlock(bool startUp) {
-	const u32& stat	= VU0.VI[REG_VPU_STAT].UL;
-	const int  test = m_Idx ? 0x100 : 1;
-	const int  s = EmuConfig.Gamefixes.VU0KickstartHack ? 16 : 0; // Kick Start Cycles (Jak needs at least 4 due to writing values after they're read
+void BaseVUmicroCPU::ExecuteBlock(bool startUp)
+{
+	const u32& stat = VU0.VI[REG_VPU_STAT].UL;
+	const int test = m_Idx ? 0x100 : 1;
+	const int s = EmuConfig.Gamefixes.VUKickstartHack ? 16 : 0; // Kick Start Cycles (Jak needs at least 4 due to writing values after they're read
 
 	if (m_Idx && THREAD_VU1)
 	{
@@ -30,12 +31,16 @@ void BaseVUmicroCPU::ExecuteBlock(bool startUp) {
 		return;
 	}
 
-	if (!(stat & test)) return;
+	if (!(stat & test))
+		return;
 
-	if (startUp && s) {  // Start Executing a microprogram
+	if (startUp && s) // Start Executing a microprogram (When kickstarted)
+	{
 		Execute(s); // Kick start VU
 
-		if (stat & test) {
+		// I don't like doing this, but Crash Twinsanity seems to be upset without it
+		if (stat & test)
+		{
 			cpuSetNextEventDelta(s);
 
 			if (m_Idx)
@@ -44,15 +49,33 @@ void BaseVUmicroCPU::ExecuteBlock(bool startUp) {
 				VU0.cycle = cpuRegs.cycle;
 		}
 	}
-	else { // Continue Executing
+	else // Continue Executing
+	{
 		u32 cycle = m_Idx ? VU1.cycle : VU0.cycle;
 		s32 delta = (s32)(u32)(cpuRegs.cycle - cycle);
-		if (delta > 0) {	// Enough time has passed
-			Execute(delta);	// Execute the time since the last call
-			if (stat & test) 
-				cpuSetNextEventDelta(delta);
+		s32 nextblockcycles = m_Idx ? VU1.nextBlockCycles : VU0.nextBlockCycles;
+
+		if (EmuConfig.Gamefixes.VUKickstartHack)
+		{
+			if (delta > 0)  // When kickstarting we just need 1 cycle for run ahead
+			Execute(delta);
 		}
-		else cpuSetNextEventDelta(-delta); // Haven't caught-up from kick start
+		else
+		{
+			if (delta >= nextblockcycles) // When running behind, make sure we have enough cycles passed for the block to run
+				Execute(delta);
+		}
+
+		if (stat & test)
+		{
+			// Queue up next required time to run a block
+			nextblockcycles = m_Idx ? VU1.nextBlockCycles : VU0.nextBlockCycles;
+			cycle = m_Idx ? VU1.cycle : VU0.cycle;
+			nextblockcycles = EmuConfig.Gamefixes.VUKickstartHack ? (cycle - cpuRegs.cycle) : nextblockcycles;
+
+			if(nextblockcycles)
+				cpuSetNextEventDelta(nextblockcycles);
+		}
 	}
 }
 
@@ -60,21 +83,18 @@ void BaseVUmicroCPU::ExecuteBlock(bool startUp) {
 // EE data to VU0's registers. We want to run VU0 Micro right after this
 // to ensure that the register is used at the correct time.
 // This fixes spinning/hanging in some games like Ratchet and Clank's Intro.
-void BaseVUmicroCPU::ExecuteBlockJIT(BaseVUmicroCPU* cpu) {
-	const u32& stat	= VU0.VI[REG_VPU_STAT].UL;
-	const int  test = cpu->m_Idx ? 0x100 : 1;
+void BaseVUmicroCPU::ExecuteBlockJIT(BaseVUmicroCPU* cpu)
+{
+	const u32& stat = VU0.VI[REG_VPU_STAT].UL;
+	const int test = 1;
 
-	if (stat & test) {		// VU is running
-		u32 cycle = cpu->m_Idx ? VU1.cycle : VU0.cycle;
-		s32 delta = (s32)(u32)(cpuRegs.cycle - cycle);
-		if (delta > 0) {			// Enough time has passed
-			cpu->Execute(delta);	// Execute the time since the last call
-			if (stat & test) {
-				cpuSetNextEventDelta(delta);
-			}
-		}
-		else {
-			cpuSetNextEventDelta(-delta); // Haven't caught-up from kick start
+	if (stat & test)
+	{ // VU is running
+		s32 delta = (s32)(u32)(cpuRegs.cycle - VU0.cycle);
+
+		if (delta > 0)
+		{ // Enough time has passed
+			cpu->Execute(delta); // Execute the time since the last call
 		}
 	}
 }

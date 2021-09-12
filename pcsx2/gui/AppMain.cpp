@@ -1,5 +1,5 @@
 /*  PCSX2 - PS2 Emulator for PCs
- *  Copyright (C) 2002-2010  PCSX2 Dev Team
+ *  Copyright (C) 2002-2021  PCSX2 Dev Team
  *
  *  PCSX2 is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU Lesser General Public License as published by the Free Software Found-
@@ -40,8 +40,8 @@
 #	include "Recording/InputRecording.h"
 #endif
 
-#include "Utilities/IniInterface.h"
-#include "Utilities/AppTrait.h"
+#include "common/IniInterface.h"
+#include "common/AppTrait.h"
 
 #include <wx/stdpaths.h>
 
@@ -70,9 +70,6 @@
 wxIMPLEMENT_APP(Pcsx2App);
 
 std::unique_ptr<AppConfig> g_Conf;
-
-AspectRatioType iniAR;
-bool switchAR;
 
 uptr pDsp[2];
 
@@ -103,7 +100,7 @@ protected:
 
 static bool HandleBIOSError(BaseException& ex)
 {
-	if (!pxDialogExists(L"Dialog:" + Dialogs::ComponentsConfigDialog::GetNameStatic()))
+	if (!pxDialogExists(L"Dialog:" + Dialogs::SysConfigDialog::GetNameStatic()))
 	{
 		if (!Msgbox::OkCancel(ex.FormatDisplayMessage() + L"\n\n" + BIOS_GetMsg_Required()
 			+ L"\n\n" + _("Press Ok to go to the BIOS Configuration Panel."), _("PS2 BIOS Error")))
@@ -116,7 +113,7 @@ static bool HandleBIOSError(BaseException& ex)
 
 	g_Conf->ComponentsTabName = L"BIOS";
 
-	return AppOpenModalDialog<Dialogs::ComponentsConfigDialog>(L"BIOS") != wxID_CANCEL;
+	return AppOpenModalDialog<Dialogs::SysConfigDialog>(L"BIOS") != wxID_CANCEL;
 }
 
 void BIOSLoadErrorEvent::InvokeEvent()
@@ -451,21 +448,6 @@ extern bool FMVstarted;
 extern bool EnableFMV;
 extern bool renderswitch;
 
-void DoFmvSwitch(bool on)
-{
-	if (g_Conf->GSWindow.FMVAspectRatioSwitch != FMV_AspectRatio_Switch_Off) {
-		if (on) {
-			switchAR = true;
-			iniAR = g_Conf->GSWindow.AspectRatio;
-		} else {
-			switchAR = false;
-		}
-		if (GSFrame* gsFrame = wxGetApp().GetGsFramePtr())
-			if (GSPanel* viewport = gsFrame->GetViewport())
-				viewport->DoResize();
-	}
-}
-
 void Pcsx2App::LogicalVsync()
 {
 	if( AppRpc_TryInvokeAsync( &Pcsx2App::LogicalVsync ) ) return;
@@ -479,7 +461,7 @@ void Pcsx2App::LogicalVsync()
 	if (g_Conf->GSWindow.FMVAspectRatioSwitch != FMV_AspectRatio_Switch_Off) {
 		if (EnableFMV) {
 			DevCon.Warning("FMV on");
-			DoFmvSwitch(true);
+			GSSetFMVSwitch(true);
 			EnableFMV = false;
 		}
 
@@ -487,7 +469,7 @@ void Pcsx2App::LogicalVsync()
 			int diff = cpuRegs.cycle - eecount_on_last_vdec;
 			if (diff > 60000000 ) {
 				DevCon.Warning("FMV off");
-				DoFmvSwitch(false);
+				GSSetFMVSwitch(false);
 				FMVstarted = false;
 			}
 		}
@@ -858,7 +840,7 @@ void Pcsx2App::OpenGsPanel()
 		//   wxWidgets is "clever" (grr!) it optimizes out just force-setting the same size
 		//   over again, so instead I resize it to size-1 and then back to the original size.
 		//
-		// FIXME: Gsdx memory leaks in DX10 have been fixed.  This code may not be needed
+		// FIXME: GS memory leaks in DX10 have been fixed.  This code may not be needed
 		// anymore.
 		
 		const wxSize oldsize( gsFrame->GetSize() );
@@ -1019,8 +1001,10 @@ protected:
 		symbolMap.Clear();
 		CBreakPoints::SetSkipFirst(BREAKPOINT_EE, 0);
 		CBreakPoints::SetSkipFirst(BREAKPOINT_IOP, 0);
-
-		CDVDsys_SetFile(CDVD_SourceType::Iso, g_Conf->CurrentIso );
+		// This function below gets called again from AppCoreThread.cpp and will pass the current ISO regardless if we
+		// are starting an ELF. In terms of symbol loading this doesn't matter because AppCoreThread.cpp doesn't clear the symbol map
+		// and we _only_ read symbols if the map is empty
+		CDVDsys_SetFile(CDVD_SourceType::Iso, m_UseELFOverride ? m_elf_override : g_Conf->CurrentIso );
 		if( m_UseCDVDsrc )
 			CDVDsys_ChangeSource( m_cdvdsrc_type );
 		else if( CDVD == NULL )

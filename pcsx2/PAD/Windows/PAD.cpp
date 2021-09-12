@@ -16,17 +16,14 @@
 #include "PrecompiledHeader.h"
 #include "Global.h"
 
-// For escape timer, so as not to break GSDX+DX9.
-#include <time.h>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
+
 #include "resource_pad.h"
 #include "InputManager.h"
 #include "PADConfig.h"
 #include "PAD.h"
-
-#define PADdefs
 
 #include "DeviceEnumerator.h"
 #ifdef _MSC_VER
@@ -34,12 +31,7 @@
 #include "HidDevice.h"
 #endif
 #include "KeyboardQueue.h"
-#include "svnrev.h"
 #include "DualShock3.h"
-#include "AppConfig.h"
-#include <timeapi.h>
-#include "Utilities/pxStreams.h"
-#include "AppCoreThread.h"
 
 #define WMA_FORCE_UPDATE (WM_APP + 0x537)
 #define FORCE_UPDATE_WPARAM ((WPARAM)0x74328943)
@@ -849,11 +841,6 @@ s32 PADinit()
 	}
 	int port = (flags & 3);
 
-#if defined(PCSX2_DEBUG) && defined(_MSC_VER)
-	int tmpFlag = _CrtSetDbgFlag(_CRTDBG_REPORT_FLAG);
-	tmpFlag |= _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF;
-	_CrtSetDbgFlag(tmpFlag);
-#endif
 	for (int i = 2; i > 0; i--)
 	{
 		port = i;
@@ -971,16 +958,6 @@ ExtraWndProcResult StatusWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPa
 	}
 	return CONTINUE_BLISSFULLY;
 }
-
-// All that's needed to force hiding the cursor in the proper thread.
-// Could have a special case elsewhere, but this make sure it's called
-// only once, rather than repeatedly.
-ExtraWndProcResult HideCursorProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, LRESULT* output)
-{
-	ShowCursor(0);
-	return CONTINUE_BLISSFULLY_AND_RELEASE_PROC;
-}
-
 #endif
 
 void PADconfigure()
@@ -1043,11 +1020,6 @@ s32 PADopen(void* pDsp)
 				openCount = 0;
 				return -1;
 			}
-		}
-
-		if (config.forceHide)
-		{
-			hWndGSProc.Eat(HideCursorProc, 0);
 		}
 
 		windowThreadId = GetWindowThreadProcessId(hWndTop, 0);
@@ -1567,7 +1539,7 @@ struct PadFullFreezeData
 	QueryInfo query;
 };
 
-s32 PADfreeze(int mode, freezeData* data)
+s32 PADfreeze(FreezeAction mode, freezeData* data)
 {
 	if (!data)
 	{
@@ -1575,11 +1547,11 @@ s32 PADfreeze(int mode, freezeData* data)
 		return -1;
 	}
 
-	if (mode == FREEZE_SIZE)
+	if (mode == FreezeAction::Size)
 	{
 		data->size = sizeof(PadFullFreezeData);
 	}
-	else if (mode == FREEZE_LOAD)
+	else if (mode == FreezeAction::Load)
 	{
 		PadFullFreezeData& pdata = *(PadFullFreezeData*)(data->data);
 		StopVibrate();
@@ -1618,7 +1590,7 @@ s32 PADfreeze(int mode, freezeData* data)
 				slots[port] = pdata.slot[port];
 		}
 	}
-	else if (mode == FREEZE_SAVE)
+	else if (mode == FreezeAction::Save)
 	{
 		if (data->size != sizeof(PadFullFreezeData))
 			return 0;

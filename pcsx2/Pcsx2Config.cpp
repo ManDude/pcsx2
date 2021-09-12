@@ -17,7 +17,7 @@
 
 #include <wx/fileconf.h>
 
-#include "Utilities/IniInterface.h"
+#include "common/IniInterface.h"
 #include "Config.h"
 #include "GS.h"
 #include "gui/GSFrame.h"
@@ -217,24 +217,6 @@ void Pcsx2Config::CpuOptions::LoadSave( IniInterface& ini )
 	Recompiler.LoadSave( ini );
 }
 
-// Default GSOptions
-Pcsx2Config::GSOptions::GSOptions()
-{
-	FrameLimitEnable		= true;
-	FrameSkipEnable			= false;
-	VsyncEnable				= VsyncMode::Off;
-
-	SynchronousMTGS			= false;
-	VsyncQueueSize			= 2;
-
-	FramesToDraw			= 2;
-	FramesToSkip			= 2;
-
-	LimitScalar				= 1.0;
-	FramerateNTSC			= 59.94;
-	FrameratePAL			= 50.0;
-}
-
 void Pcsx2Config::GSOptions::LoadSave( IniInterface& ini )
 {
 	ScopedIniGroup path( ini, L"GS" );
@@ -276,7 +258,6 @@ const wxChar *const tbl_GamefixNames[] =
 	L"FpuMul",
 	L"FpuNegDiv",
 	L"XGKick",
-	L"IPUWait",
 	L"EETiming",
 	L"SkipMPEG",
 	L"OPHFlag",
@@ -286,7 +267,7 @@ const wxChar *const tbl_GamefixNames[] =
 	L"GIFFIFO",
 	L"GoemonTlb",
 	L"Ibit",
-	L"VU0Kickstart"
+	L"VUKickstart"
 };
 
 const __fi wxChar* EnumToString( GamefixId id )
@@ -337,7 +318,6 @@ void Pcsx2Config::GamefixOptions::Set( GamefixId id, bool enabled )
 		case Fix_FpuMultiply:	FpuMulHack			= enabled;	break;
 		case Fix_FpuNegDiv:		FpuNegDivHack		= enabled;	break;
 		case Fix_XGKick:		XgKickHack			= enabled;	break;
-		case Fix_IpuWait:		IPUWaitHack			= enabled;	break;
 		case Fix_EETiming:		EETimingHack		= enabled;	break;
 		case Fix_SkipMpeg:		SkipMPEGHack		= enabled;	break;
 		case Fix_OPHFlag:		OPHFlagHack			= enabled;  break;
@@ -347,7 +327,7 @@ void Pcsx2Config::GamefixOptions::Set( GamefixId id, bool enabled )
 		case Fix_GIFFIFO:		GIFFIFOHack			= enabled;  break;
 		case Fix_GoemonTlbMiss: GoemonTlbHack		= enabled;  break;
 		case Fix_Ibit:			IbitHack			= enabled;  break;
-		case Fix_VU0Kickstart:	VU0KickstartHack	= enabled; break;
+		case Fix_VUKickstart:	VUKickstartHack		= enabled; break;
 		jNO_DEFAULT;
 	}
 }
@@ -361,7 +341,6 @@ bool Pcsx2Config::GamefixOptions::Get( GamefixId id ) const
 		case Fix_FpuMultiply:	return FpuMulHack;
 		case Fix_FpuNegDiv:		return FpuNegDivHack;
 		case Fix_XGKick:		return XgKickHack;
-		case Fix_IpuWait:		return IPUWaitHack;
 		case Fix_EETiming:		return EETimingHack;
 		case Fix_SkipMpeg:		return SkipMPEGHack;
 		case Fix_OPHFlag:		return OPHFlagHack;
@@ -371,7 +350,7 @@ bool Pcsx2Config::GamefixOptions::Get( GamefixId id ) const
 		case Fix_GIFFIFO:		return GIFFIFOHack;
 		case Fix_GoemonTlbMiss: return GoemonTlbHack;
 		case Fix_Ibit:			return IbitHack;
-		case Fix_VU0Kickstart:	return VU0KickstartHack;
+		case Fix_VUKickstart:	return VUKickstartHack;
 		jNO_DEFAULT;
 	}
 	return false;		// unreachable, but we still need to suppress warnings >_<
@@ -385,7 +364,6 @@ void Pcsx2Config::GamefixOptions::LoadSave( IniInterface& ini )
 	IniBitBool( FpuMulHack );
 	IniBitBool( FpuNegDivHack );
 	IniBitBool( XgKickHack );
-	IniBitBool( IPUWaitHack );
 	IniBitBool( EETimingHack );
 	IniBitBool( SkipMPEGHack );
 	IniBitBool( OPHFlagHack );
@@ -395,7 +373,7 @@ void Pcsx2Config::GamefixOptions::LoadSave( IniInterface& ini )
 	IniBitBool( GIFFIFOHack );
 	IniBitBool( GoemonTlbHack );
 	IniBitBool( IbitHack );
-	IniBitBool( VU0KickstartHack );
+	IniBitBool( VUKickstartHack );
 }
 
 

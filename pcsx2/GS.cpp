@@ -28,18 +28,11 @@ using namespace R5900;
 
 __aligned16 u8 g_RealGSMem[Ps2MemSize::GSregs];
 
-void gsOnModeChanged( Fixed100 framerate, u32 newTickrate )
-{
-	GetMTGS().SendSimplePacket( GS_RINGTYPE_MODECHANGE, framerate.Raw, newTickrate, 0 );
-}
-
-
-void gsSetVideoMode(GS_VideoMode mode )
+void gsSetVideoMode(GS_VideoMode mode)
 {
 	gsVideoMode = mode;
 	UpdateVSyncRate();
 }
-
 
 // Make sure framelimiter options are in sync with GS capabilities.
 void gsReset()

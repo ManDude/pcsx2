@@ -21,7 +21,7 @@
 #include "GS.h"
 
 // FIXME common path ?
-#include "Utilities/boost_spsc_queue.hpp"
+#include "common/boost_spsc_queue.hpp"
 
 struct GS_Packet;
 extern void Gif_MTGS_Wait(bool isMTVU);
@@ -538,6 +538,7 @@ struct Gif_Unit
 		gifRegs.stat.reset();
 		gifRegs.ctrl.reset();
 		gifRegs.mode.reset();
+		gif_fifo.init();
 	}
 
 	// Adds a finished GS Packet to the MTGS ring buffer

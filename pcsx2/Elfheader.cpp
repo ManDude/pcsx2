@@ -19,42 +19,46 @@
 #include "GS.h"			// for sending game crc to mtgs
 #include "Elfheader.h"
 #include "DebugTools/SymbolMap.h"
-#include "AppCoreThread.h"
+#include "gui/AppCoreThread.h"
 
 u32 ElfCRC;
 u32 ElfEntry;
 std::pair<u32,u32> ElfTextRange;
 wxString LastELF;
+bool isPSXElf;
 
 // All of ElfObjects functions.
-ElfObject::ElfObject(const wxString& srcfile, IsoFile& isofile)
+ElfObject::ElfObject(const wxString& srcfile, IsoFile& isofile, bool isPSXElf)
 	: data( wxULongLong(isofile.getLength()).GetLo(), L"ELF headers" )
 	, proghead( NULL )
 	, secthead( NULL )
 	, filename( srcfile )
 	, header( *(ELF_HEADER*)data.GetPtr() )
 {
-	isCdvd = true;
 	checkElfSize(data.GetSizeInBytes());
 	readIso(isofile);
-	initElfHeaders();
+	initElfHeaders(isPSXElf);
 }
 
-ElfObject::ElfObject( const wxString& srcfile, uint hdrsize )
+ElfObject::ElfObject( const wxString& srcfile, uint hdrsize, bool isPSXElf )
 	: data( wxULongLong(hdrsize).GetLo(), L"ELF headers" )
 	, proghead( NULL )
 	, secthead( NULL )
 	, filename( srcfile )
 	, header( *(ELF_HEADER*)data.GetPtr() )
 {
-	isCdvd = false;
 	checkElfSize(data.GetSizeInBytes());
 	readFile();
-	initElfHeaders();
+	initElfHeaders(isPSXElf);
 }
 
-void ElfObject::initElfHeaders()
+void ElfObject::initElfHeaders(bool isPSXElf)
 {
+	if (isPSXElf)
+	{
+		return;
+	}
+
 	DevCon.WriteLn( L"Initializing Elf: %d bytes", data.GetSizeInBytes());
 
 	if ( header.e_phnum > 0 )
@@ -289,7 +293,7 @@ void ElfObject::loadSectionHeaders()
 		for(uint i = 1; i < (secthead[i_st].sh_size / sizeof(Elf32_Sym)); i++) {
 			if ((eS[i].st_value != 0) && (ELF32_ST_TYPE(eS[i].st_info) == 2))
 			{
-				symbolMap.AddLabel(&SymNames[eS[i].st_name],eS[i].st_value);
+				R5900SymbolMap.AddLabel(&SymNames[eS[i].st_name],eS[i].st_value);
 			}
 		}
 	}

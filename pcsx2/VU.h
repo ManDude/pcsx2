@@ -108,9 +108,11 @@ struct efuPipe
 
 struct fmacPipe
 {
-	int enable;
-	int reg;
-	int xyzw;
+	u32 regupper;
+	u32 reglower;
+	int flagreg;
+	u32 xyzwupper;
+	u32 xyzwlower;
 	u32 sCycle;
 	u32 Cycle;
 	u32 macflag;
@@ -120,13 +122,12 @@ struct fmacPipe
 
 struct ialuPipe
 {
-	int enable;
 	int reg;
 	u32 sCycle;
 	u32 Cycle;
 };
 
-struct __aligned16 VURegs
+struct alignas(16) VURegs
 {
 	VECTOR VF[32]; // VF and VI need to be first in this struct for proper mapping
 	REG_VI VI[32]; // needs to be 128bit x 32 (cottonvibes)
@@ -153,12 +154,14 @@ struct __aligned16 VURegs
 	u32 branchpc;
 	u32 delaybranchpc;
 	bool takedelaybranch;
+	u32 ebit;
 	u32 pending_q;
 	u32 pending_p;
+	u32 blockhasmbit;
 
-	__aligned16 u32 micro_macflags[4];
-	__aligned16 u32 micro_clipflags[4];
-	__aligned16 u32 micro_statusflags[4];
+	alignas(16) u32 micro_macflags[4];
+	alignas(16) u32 micro_clipflags[4];
+	alignas(16) u32 micro_statusflags[4];
 	// MAC/Status flags -- these are used by interpreters but are kind of hacky
 	// and shouldn't be relied on for any useful/valid info.  Would like to move them out of
 	// this struct eventually.
@@ -171,16 +174,28 @@ struct __aligned16 VURegs
 	u8* Mem;
 	u8* Micro;
 
-	u32 ebit;
+	u32 xgkickaddr;
+	u32 xgkickdiff;
+	u32 xgkicksizeremaining;
+	u32 xgkicklastcycle;
+	u32 xgkickcyclecount;
+	u32 xgkickenable;
+	u32 xgkickendpacket;
 
 	u8 VIBackupCycles;
 	u32 VIOldValue;
 	u32 VIRegNumber;
 
-	fmacPipe fmac[8];
+	fmacPipe fmac[4];
+	u32 fmacreadpos;
+	u32 fmacwritepos;
+	u32 fmaccount;
 	fdivPipe fdiv;
 	efuPipe efu;
-	ialuPipe ialu[8];
+	ialuPipe ialu[4];
+	u32 ialureadpos;
+	u32 ialuwritepos;
+	u32 ialucount;
 
 	VURegs()
 	{
@@ -208,7 +223,7 @@ enum VUPipeState
 	VUPIPE_XGKICK
 };
 
-extern __aligned16 VURegs vuRegs[2];
+extern VURegs vuRegs[2];
 
 // Obsolete(?)  -- I think I'd rather use vu0Regs/vu1Regs or actually have these explicit to any
 // CPP file that needs them only. --air

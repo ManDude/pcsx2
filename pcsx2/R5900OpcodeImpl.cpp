@@ -650,7 +650,7 @@ void LWR()
 
 // dummy variable used as a destination address for writes to the zero register, so
 // that the zero register always stays zero.
-static __aligned16 GPR_reg m_dummy_gpr_zero;
+alignas(16) static GPR_reg m_dummy_gpr_zero;
 
 // Returns the x86 address of the requested GPR, which is safe for writing. (includes
 // special handling for returning a dummy var for GPR0(zero), so that it's value is
@@ -944,8 +944,11 @@ void SYSCALL()
 					DevCon.Warning("Set GS CRTC configuration. %s %s (%s)",mode.c_str(), inter, field);
 				}
 				break;
+		case Syscall::SetOsdConfigParam:
+			AllowParams1 = true;
+			break;
 		case Syscall::GetOsdConfigParam:
-			if(!NoOSD && g_SkipBiosHack)
+			if(!NoOSD && g_SkipBiosHack && !AllowParams1)
 			{
 				u32 memaddr = cpuRegs.GPR.n.a0.UL[0];
 				u8 params[16];
@@ -965,8 +968,11 @@ void SYSCALL()
 				return;
 			}
 			break;
+		case Syscall::SetOsdConfigParam2:
+			AllowParams2 = true;
+			break;
 		case Syscall::GetOsdConfigParam2:
-			if (!NoOSD && g_SkipBiosHack)
+			if (!NoOSD && g_SkipBiosHack && !AllowParams2)
 			{
 				u32 memaddr = cpuRegs.GPR.n.a0.UL[0];
 				u8 params[16];

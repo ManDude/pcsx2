@@ -18,15 +18,14 @@
 
 #include <list>
 
-#include "GS.h"
 #include "Gif_Unit.h"
 #include "Counters.h"
-#include "GSFrame.h"
+#include "Config.h"
 
 using namespace Threading;
 using namespace R5900;
 
-__aligned16 u8 g_RealGSMem[Ps2MemSize::GSregs];
+alignas(16) u8 g_RealGSMem[Ps2MemSize::GSregs];
 
 void gsSetVideoMode(GS_VideoMode mode)
 {
@@ -48,16 +47,16 @@ void gsReset()
 
 void gsUpdateFrequency(Pcsx2Config& config)
 {
-	switch (g_LimiterMode)
+	switch (EmuConfig.LimiterMode)
 	{
-	case LimiterModeType::Limit_Nominal:
-		config.GS.LimitScalar = g_Conf->Framerate.NominalScalar;
+	case LimiterModeType::Nominal:
+		config.GS.LimitScalar = EmuConfig.Framerate.NominalScalar;
 		break;
-	case LimiterModeType::Limit_Slomo:
-		config.GS.LimitScalar = g_Conf->Framerate.SlomoScalar;
+	case LimiterModeType::Slomo:
+		config.GS.LimitScalar = EmuConfig.Framerate.SlomoScalar;
 		break;
-	case LimiterModeType::Limit_Turbo:
-		config.GS.LimitScalar = g_Conf->Framerate.TurboScalar;
+	case LimiterModeType::Turbo:
+		config.GS.LimitScalar = EmuConfig.Framerate.TurboScalar;
 		break;
 	default:
 		pxAssert("Unknown framelimiter mode!");

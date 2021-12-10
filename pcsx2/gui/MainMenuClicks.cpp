@@ -23,11 +23,7 @@
 #include "System/SysThreads.h"
 #include "DEV9/DEV9.h"
 #include "USB/USB.h"
-#ifdef _WIN32
-#include "PAD/Windows/PAD.h"
-#else
-#include "PAD/Linux/PAD.h"
-#endif
+#include "PAD/Gamepad.h"
 
 #include "ConsoleLogger.h"
 #include "MainFrame.h"
@@ -101,7 +97,7 @@ void MainEmuFrame::Menu_GSSettings_Click(wxCommandEvent& event)
 	if (is_frame_init)
 	{
 		GetMTGS().Freeze(FreezeAction::Size, sstate);
-		fP.data = new char[fP.size];
+		fP.data = new u8[fP.size];
 		GetMTGS().Freeze(FreezeAction::Save, sstate);
 		GetMTGS().Suspend(true);
 	}
@@ -1016,7 +1012,7 @@ void MainEmuFrame::Menu_Capture_Screenshot_Screenshot_As_Click(wxCommandEvent& e
 	// Ensure emulation is paused so that the correct image is captured
 	bool wasPaused = CoreThread.IsPaused();
 	if (!wasPaused)
-		CoreThread.Pause();
+		CoreThread.Pause({});
 
 	wxFileDialog fileDialog(this, _("Select a file"), g_Conf->Folders.Snapshots.ToAscii(), wxEmptyString, "PNG files (*.png)|*.png", wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
 
@@ -1114,7 +1110,7 @@ void MainEmuFrame::Menu_Recording_Config_FrameAdvance(wxCommandEvent& event)
 		g_Conf->inputRecording.m_frame_advance_amount = result;
 		g_InputRecordingControls.setFrameAdvanceAmount(result);
 		wxString frame_advance_label = wxString(_("Configure Frame Advance"));
-		frame_advance_label.Append(fmt::format(" ({})", result));
+		frame_advance_label.Append(wxString::Format(" (%ld)", result));
 		m_submenu_recording_settings.SetLabel(MenuId_Recording_Config_FrameAdvance, frame_advance_label);
 	}
 }

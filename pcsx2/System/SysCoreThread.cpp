@@ -19,6 +19,9 @@
 #include "IopBios.h"
 #include "R5900.h"
 
+#include "common/WindowInfo.h"
+extern WindowInfo g_gs_window_info;
+
 #include "Counters.h"
 #include "GS.h"
 #include "Elfheader.h"
@@ -30,12 +33,8 @@
 #include "SPU2/spu2.h"
 #include "DEV9/DEV9.h"
 #include "USB/USB.h"
-#include "gui/MemoryCardFile.h"
-#ifdef _WIN32
-#include "PAD/Windows/PAD.h"
-#else
-#include "PAD/Linux/PAD.h"
-#endif
+#include "MemoryCardFile.h"
+#include "PAD/Gamepad.h"
 
 #include "DebugTools/MIPSAnalyst.h"
 #include "DebugTools/SymbolMap.h"
@@ -99,6 +98,12 @@ bool SysCoreThread::Cancel(const wxTimeSpan& span)
 void SysCoreThread::OnStart()
 {
 	_parent::OnStart();
+}
+
+void SysCoreThread::OnSuspendInThread()
+{
+	TearDownSystems(static_cast<SystemsMask>(-1)); // All systems
+	GetMTGS().Suspend();
 }
 
 void SysCoreThread::Start()
@@ -176,7 +181,7 @@ void SysCoreThread::ApplySettings(const Pcsx2Config& src)
 	m_resetProfilers = (src.Profiler != EmuConfig.Profiler);
 	m_resetVsyncTimers = (src.GS != EmuConfig.GS);
 
-	const_cast<Pcsx2Config&>(EmuConfig) = src;
+	EmuConfig.CopyConfig(src);
 }
 
 // --------------------------------------------------------------------------------------
@@ -250,8 +255,9 @@ void SysCoreThread::GameStartingInThread()
 {
 	GetMTGS().SendGameCRC(ElfCRC);
 
-	MIPSAnalyst::ScanForFunctions(ElfTextRange.first, ElfTextRange.first + ElfTextRange.second, true);
-	symbolMap.UpdateActiveSymbols();
+	MIPSAnalyst::ScanForFunctions(R5900SymbolMap, ElfTextRange.first, ElfTextRange.first + ElfTextRange.second, true);
+	R5900SymbolMap.UpdateActiveSymbols();
+	R3000SymbolMap.UpdateActiveSymbols();
 	sApp.PostAppMethod(&Pcsx2App::resetDebugger);
 
 	ApplyLoadedPatches(PPT_ONCE_ON_LOAD);
@@ -302,30 +308,26 @@ void SysCoreThread::ExecuteTaskInThread()
 	PCSX2_PAGEFAULT_EXCEPT;
 }
 
-void SysCoreThread::OnSuspendInThread()
+void SysCoreThread::TearDownSystems(SystemsMask systemsToTearDown)
 {
-	DEV9close();
-	USBclose();
-	DoCDVDclose();
-	FWclose();
-	PADclose();
-	SPU2close();
-	FileMcd_EmuClose();
-	GetMTGS().Suspend();
+	if (systemsToTearDown & System_DEV9) DEV9close();
+	if (systemsToTearDown & System_USB) USBclose();
+	if (systemsToTearDown & System_CDVD) DoCDVDclose();
+	if (systemsToTearDown & System_FW) FWclose();
+	if (systemsToTearDown & System_PAD) PADclose();
+	if (systemsToTearDown & System_SPU2) SPU2close();
+	if (systemsToTearDown & System_MCD) FileMcd_EmuClose();
 }
 
-void SysCoreThread::OnResumeInThread(bool isSuspended)
+void SysCoreThread::OnResumeInThread(SystemsMask systemsToReinstate)
 {
 	GetMTGS().WaitForOpen();
-	if (isSuspended)
-	{
-		DEV9open((void*)pDsp);
-		USBopen((void*)pDsp);
-	}
-	FWopen();
-	SPU2open((void*)pDsp);
-	PADopen((void*)pDsp);
-	FileMcd_EmuOpen();
+	if (systemsToReinstate & System_DEV9) DEV9open();
+	if (systemsToReinstate & System_USB) USBopen(g_gs_window_info);
+	if (systemsToReinstate & System_FW) FWopen();
+	if (systemsToReinstate & System_SPU2) SPU2open();
+	if (systemsToReinstate & System_PAD) PADopen(g_gs_window_info);
+	if (systemsToReinstate & System_MCD) FileMcd_EmuOpen();
 }
 
 

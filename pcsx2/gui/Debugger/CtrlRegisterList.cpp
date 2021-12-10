@@ -16,9 +16,10 @@
 #include "PrecompiledHeader.h"
 #include "CtrlRegisterList.h"
 #include "DebugTools/Debug.h"
+#include "common/BitCast.h"
 
 #include "DebugEvents.h"
-#include "AppConfig.h"
+#include "gui/AppConfig.h"
 #include "DisassemblyDialog.h"
 
 wxBEGIN_EVENT_TABLE(CtrlRegisterList, wxWindow)
@@ -74,8 +75,8 @@ CtrlRegisterList::CtrlRegisterList(wxWindow* parent, DebugInterface* _cpu)
 	SetDoubleBuffered(true);
 
 	const wxSize optSize = getOptimalSize();
-	SetVirtualSize(optSize);
-	SetScrollbars(1, rowHeight, optSize.x, optSize.y / rowHeight, 0, 0);
+	SetVirtualSize(optSize.x,optSize.y);
+	SetScrollbars(1, rowHeight, optSize.x, optSize.y * MSW_GetDPIScale() / rowHeight, 0, 0);
 }
 
 CtrlRegisterList::~CtrlRegisterList()
@@ -288,8 +289,7 @@ void CtrlRegisterList::OnDraw(wxDC& dc)
 						// and use this information for printing the VU0F titles
 						for (int j = 3; j >= 0; j--)
 						{
-							// Use std::bit_cast in C++20. The below is technically UB
-							sprintf(str, "%7.2f", *(float*)&val._u32[j]);
+							sprintf(str, "%7.2f", bit_cast<float,u32>(val._u32[j]));
 							dc.DrawText(wxString(str), x, y + 2);
 							x += charWidth * 8 + 2;
 						}
@@ -309,95 +309,97 @@ void CtrlRegisterList::OnDraw(wxDC& dc)
 
 						break;
 					}
-					[[fallthrough]]; // If we fallthrough, display VU0f as hexadecimal
 				}
 				else
 				{
 					dc.DrawText(cpu->getRegisterString(category, i), x, y + 2);
 					break;
 				}
-				case DebugInterface::NORMAL: // display them in 32 bit parts
-					switch (registerBits)
+			}
+				[[fallthrough]];
+			case DebugInterface::NORMAL: // display them in 32 bit parts
+			{
+				switch (registerBits)
+				{
+					case 128:
 					{
-						case 128:
+						int startIndex = 3;
+
+						if (resolvePointerStrings && cpu->isAlive())
 						{
-							int startIndex = 3;
-
-							if (resolvePointerStrings && cpu->isAlive())
+							const char* strval = cpu->stringFromPointer(value._u32[0]);
+							if (strval)
 							{
-								const char* strval = cpu->stringFromPointer(value._u32[0]);
-								if (strval)
-								{
-									static wxColor clr = wxColor(0xFF228822);
-									dc.SetTextForeground(clr);
-									dc.DrawText(wxString(strval), width - (32 * charWidth + 12), y + 2);
-									startIndex = 0;
-								}
+								static wxColor clr = wxColor(0xFF228822);
+								dc.SetTextForeground(clr);
+								dc.DrawText(wxString(strval), width - (32 * charWidth + 12), y + 2);
+								startIndex = 0;
 							}
-
-							const int actualX = width - 4 - (startIndex + 1) * (8 * charWidth + 2);
-							x = std::max<int>(actualX, x);
-
-							if (startIndex != 3)
-							{
-								bool c = false;
-								for (int i = 3; i > startIndex; i--)
-									c = c || changed.changed[i];
-
-								if (c)
-								{
-									dc.SetTextForeground(colorChanged);
-									dc.DrawText(L"+", x - charWidth, y + 2);
-								}
-							}
-
-							for (int j = startIndex; j >= 0; j--)
-							{
-								if (changed.changed[j])
-									dc.SetTextForeground(colorChanged);
-								else
-									dc.SetTextForeground(colorUnchanged);
-
-								drawU32Text(dc, value._u32[j], x, y + 2);
-
-								// Only draw the VU0f titles when we are drawing the first row and are on the VU0f category
-								if (category == EECAT_VU0F && i == startRow)
-								{
-									dc.SetTextForeground(colorNormal);
-									dc.DrawText(vu0fTitles[vu0fTitleCur++], x + (charWidth * 2.5) , rowHeight + 2);
-								}
-								x += charWidth * 8 + 2;
-							}
-
-							break;
 						}
-						case 64:
+
+						const int actualX = width - 4 - (startIndex + 1) * (8 * charWidth + 2);
+						x = std::max<int>(actualX, x);
+
+						if (startIndex != 3)
 						{
-							for (int j = 1; j >= 0; j--)
+							bool c = false;
+							for (int i = 3; i > startIndex; i--)
+								c = c || changed.changed[i];
+
+							if (c)
 							{
-								if (changed.changed[j])
-									dc.SetTextForeground(colorChanged);
-								else
-									dc.SetTextForeground(colorUnchanged);
-
-								drawU32Text(dc, value._u32[j], x, y + 2);
-								x += charWidth * 8 + 2;
+								dc.SetTextForeground(colorChanged);
+								dc.DrawText(L"+", x - charWidth, y + 2);
 							}
-
-							break;
 						}
-						case 32:
+
+						for (int j = startIndex; j >= 0; j--)
 						{
-							if (changed.changed[0])
+							if (changed.changed[j])
 								dc.SetTextForeground(colorChanged);
 							else
 								dc.SetTextForeground(colorUnchanged);
 
-							drawU32Text(dc, value._u32[0], x, y + 2);
-							break;
+							drawU32Text(dc, value._u32[j], x, y + 2);
+
+							// Only draw the VU0f titles when we are drawing the first row and are on the VU0f category
+							if (category == EECAT_VU0F && i == startRow)
+							{
+								dc.SetTextForeground(colorNormal);
+								dc.DrawText(vu0fTitles[vu0fTitleCur++], x + (charWidth * 2.5), rowHeight + 2);
+							}
+							x += charWidth * 8 + 2;
 						}
+
+						break;
 					}
-					break;
+					case 64:
+					{
+						for (int j = 1; j >= 0; j--)
+						{
+							if (changed.changed[j])
+								dc.SetTextForeground(colorChanged);
+							else
+								dc.SetTextForeground(colorUnchanged);
+
+							drawU32Text(dc, value._u32[j], x, y + 2);
+							x += charWidth * 8 + 2;
+						}
+
+						break;
+					}
+					case 32:
+					{
+						if (changed.changed[0])
+							dc.SetTextForeground(colorChanged);
+						else
+							dc.SetTextForeground(colorUnchanged);
+
+						drawU32Text(dc, value._u32[0], x, y + 2);
+						break;
+					}
+				}
+				break;
 			}
 		}
 	}

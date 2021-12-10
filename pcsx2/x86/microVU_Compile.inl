@@ -478,6 +478,7 @@ void mVUtestCycles(microVU& mVU, microFlagCycles& mFC)
 	xForwardJGE32 skip;
 
 	mVUsavePipelineState(mVU);
+	xMOV(ptr32[&mVU.regs().nextBlockCycles], mVUcycles);
 	mVUendProgram(mVU, &mFC, 0);
 
 	skip.SetTarget();
@@ -537,6 +538,7 @@ __fi void mVUinitFirstPass(microVU& mVU, uptr pState, u8* thisPtr)
 	mVUregs.blockType = 0;
 	mVUregs.viBackUp  = 0;
 	mVUregs.flagInfo  = 0;
+	mVUregs.mbitinblock = false;
 	mVUsFlagHack = CHECK_VU_FLAGHACK;
 	mVUinitConstValues(mVU);
 }
@@ -594,6 +596,18 @@ void* mVUcompileSingleInstruction(microVU& mVU, u32 startPC, uptr pState, microF
 		mVUopL(mVU, 0);
 		incPC(1);
 	}
+
+	if (!mVUlow.isKick)
+	{
+		mVUlow.kickcycles = 1 + mVUstall;
+		mVUregs.xgkickcycles = 0;
+	}
+	else
+	{
+		mVUregs.xgkickcycles = 0;
+		mVUlow.kickcycles = 0;
+	}
+
 	mVUsetCycles(mVU);
 	mVUinfo.readQ = mVU.q;
 	mVUinfo.writeQ = !mVU.q;
@@ -618,11 +632,18 @@ void* mVUcompileSingleInstruction(microVU& mVU, u32 startPC, uptr pState, microF
 	}
 	mVUexecuteInstruction(mVU);
 
+	if (isVU1 && mVUlow.kickcycles && CHECK_XGKICKHACK)
+	{
+		mVU_XGKICK_SYNC(mVU, false);
+	}
+
 	mVUincCycles(mVU, 1); //Just incase the is XGKick
 	if (mVUinfo.doXGKICK)
 	{
 		mVU_XGKICK_DELAY(mVU);
 	}
+
+	mVUregs.xgkickcycles = 0;
 
 	return thisPtr;
 }
@@ -672,7 +693,7 @@ void* mVUcompile(microVU& mVU, u32 startPC, uptr pState)
 	// First Pass
 	iPC = startPC / 4;
 	mVUsetupRange(mVU, startPC, 1); // Setup Program Bounds/Range
-	mVU.regAlloc->reset();          // Reset regAlloc
+	mVU.regAlloc->reset(false);          // Reset regAlloc
 	mVUinitFirstPass(mVU, pState, thisPtr);
 	mVUbranch = 0;
 	for (int branch = 0; mVUcount < endCount;)
@@ -693,6 +714,7 @@ void* mVUcompile(microVU& mVU, u32 startPC, uptr pState)
 
 		if ((curI & _Mbit_) && isVU0)
 		{
+			mVUregs.mbitinblock = true;
 			if (xPC > 0)
 			{
 				incPC(-2);
@@ -734,6 +756,22 @@ void* mVUcompile(microVU& mVU, u32 startPC, uptr pState)
 			mVUup.tBit = true;
 		}
 		mVUsetCycles(mVU);
+		// Update XGKick information
+		if (!mVUlow.isKick)
+		{
+			mVUregs.xgkickcycles += 1 + mVUstall;
+			if (mVUlow.isMemWrite)
+			{
+				mVUlow.kickcycles = mVUregs.xgkickcycles;
+				mVUregs.xgkickcycles = 0;
+			}
+		}
+		else
+		{
+			mVUregs.xgkickcycles = 0;
+			mVUlow.kickcycles = 0;
+		}
+
 		mVUinfo.readQ = mVU.q;
 		mVUinfo.writeQ = !mVU.q;
 		mVUinfo.readP = mVU.p && isVU1;
@@ -750,6 +788,11 @@ void* mVUcompile(microVU& mVU, u32 startPC, uptr pState)
 			}
 
 			branchWarning(mVU);
+			if (mVUregs.xgkickcycles)
+			{
+				mVUlow.kickcycles = mVUregs.xgkickcycles;
+				mVUregs.xgkickcycles = 0;
+			}
 			break;
 		}
 		else if (branch == 1)
@@ -768,11 +811,23 @@ void* mVUcompile(microVU& mVU, u32 startPC, uptr pState)
 		if (mVUup.mBit && !branch && !mVUup.eBit)
 		{
 			mVUregs.needExactMatch |= 7;
+			if (mVUregs.xgkickcycles)
+			{
+				mVUlow.kickcycles = mVUregs.xgkickcycles;
+				mVUregs.xgkickcycles = 0;
+			}
 			break;
 		}
 
 		if (mVUinfo.isEOB)
+		{
+			if (mVUregs.xgkickcycles)
+			{
+				mVUlow.kickcycles = mVUregs.xgkickcycles;
+				mVUregs.xgkickcycles = 0;
+			}
 			break;
+		}
 
 		incPC(1);
 	}
@@ -780,7 +835,7 @@ void* mVUcompile(microVU& mVU, u32 startPC, uptr pState)
 	// Fix up vi15 const info for propagation through blocks
 	mVUregs.vi15 = (doConstProp && mVUconstReg[15].isValid) ? (u16)mVUconstReg[15].regValue : 0;
 	mVUregs.vi15v = (doConstProp && mVUconstReg[15].isValid) ? 1 : 0;
-
+	xMOV(ptr32[&mVU.regs().blockhasmbit], mVUregs.mbitinblock);
 	mVUsetFlags(mVU, mFC);           // Sets Up Flag instances
 	mVUoptimizePipeState(mVU);       // Optimize the End Pipeline State for nicer Block Linking
 	mVUdebugPrintBlocks(mVU, false); // Prints Start/End PC of blocks executed, for debugging...
@@ -803,6 +858,12 @@ void* mVUcompile(microVU& mVU, u32 startPC, uptr pState)
 		{
 			xOR(ptr32[&mVU.regs().flags], VUFLAG_MFLAGSET);
 		}
+
+		if (isVU1 && mVUlow.kickcycles && CHECK_XGKICKHACK)
+		{
+			mVU_XGKICK_SYNC(mVU, false);
+		}
+
 		mVUexecuteInstruction(mVU);
 		if (!mVUinfo.isBdelay && !mVUlow.branch) //T/D Bit on branch is handled after the branch, branch delay slots are executed.
 		{
@@ -829,6 +890,7 @@ void* mVUcompile(microVU& mVU, u32 startPC, uptr pState)
 				}
 				incPC(2);
 				mVUsetupRange(mVU, xPC, false);
+				xMOV(ptr32[&mVU.regs().nextBlockCycles], 0);
 				mVUendProgram(mVU, &mFC, 0);
 				normBranchCompile(mVU, xPC);
 				incPC(-2);

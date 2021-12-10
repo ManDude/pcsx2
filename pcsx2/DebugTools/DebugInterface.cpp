@@ -18,7 +18,6 @@
 #include "DebugInterface.h"
 #include "Memory.h"
 #include "R5900.h"
-#include "AppCoreThread.h"
 #include "Debug.h"
 #include "VU.h"
 #include "GS.h" // Required for gsNonMirroredRead()
@@ -27,8 +26,6 @@
 #include "R3000A.h"
 #include "IopMem.h"
 #include "SymbolMap.h"
-
-extern AppCoreThread CoreThread;
 
 R5900DebugInterface r5900Debug;
 R3000DebugInterface r3000Debug;
@@ -94,7 +91,7 @@ public:
 	virtual bool parseSymbol(char* str, u64& symbolValue)
 	{
 		u32 value;
-		bool result = symbolMap.GetLabelValue(str, value);
+		bool result = cpu->GetSymbolMap().GetLabelValue(str, value);
 		symbolValue = value;
 		return result;
 	}
@@ -182,7 +179,7 @@ void DebugInterface::pauseCpu()
 {
 	SysCoreThread& core = GetCoreThread();
 	if (!core.IsPaused())
-		core.Pause(true);
+		core.Pause({}, true);
 }
 
 void DebugInterface::resumeCpu()
@@ -286,7 +283,7 @@ u64 R5900DebugInterface::read64(u32 address)
 
 u128 R5900DebugInterface::read128(u32 address)
 {
-	__aligned16 u128 result;
+	alignas(16) u128 result;
 	if (!isValidAddress(address) || address % 16)
 	{
 		result.hi = result.lo = -1;
@@ -638,10 +635,7 @@ bool R5900DebugInterface::isValidAddress(u32 addr)
 		case 0xA:
 		case 0xB:
 			// [ 8000_0000 - BFFF_FFFF ] kernel
-			// We only need to access the EE kernel (which is 1 MB large)
-			if (lopart < 0x100000)
-				return true;
-			break;
+			return true;
 		case 0xF:
 			// [ 8000_0000 - BFFF_FFFF ] IOP or kernel stack
 			if (lopart >= 0xfff8000)
@@ -655,6 +649,11 @@ bool R5900DebugInterface::isValidAddress(u32 addr)
 u32 R5900DebugInterface::getCycles()
 {
 	return cpuRegs.cycle;
+}
+
+SymbolMap& R5900DebugInterface::GetSymbolMap() const
+{
+	return R5900SymbolMap;
 }
 
 //
@@ -895,4 +894,9 @@ bool R3000DebugInterface::isValidAddress(u32 addr)
 u32 R3000DebugInterface::getCycles()
 {
 	return psxRegs.cycle;
+}
+
+SymbolMap& R3000DebugInterface::GetSymbolMap() const
+{
+	return R3000SymbolMap;
 }

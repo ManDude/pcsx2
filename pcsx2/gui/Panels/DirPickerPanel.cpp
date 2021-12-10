@@ -15,7 +15,7 @@
 
 #include "PrecompiledHeader.h"
 #include "ConfigurationPanels.h"
-#include "Dialogs/ModalPopups.h"
+#include "gui/Dialogs/ModalPopups.h"
 
 #include <wx/stdpaths.h>
 #include <wx/file.h>
@@ -78,7 +78,7 @@ void Panels::DirPickerPanel::Explore_Click( wxCommandEvent &evt )
 		path.Mkdir();
 	}
 
-	pxExplore( path.ToString() );
+	wxLaunchDefaultApplication(path.ToString());
 }
 
 // There are two constructors.  See the details for the 'label' parameter below for details.

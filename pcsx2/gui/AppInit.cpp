@@ -21,6 +21,7 @@
 #include "MTVU.h" // for thread cancellation on shutdown
 
 #include "common/IniInterface.h"
+#include "common/StringUtil.h"
 #include "DebugTools/Debug.h"
 #include "Dialogs/ModalPopups.h"
 
@@ -34,6 +35,13 @@
 #include <wx/intl.h>
 #include <wx/stdpaths.h>
 #include <memory>
+
+#ifdef __WXGTK__
+#include <gdk/gdkx.h>
+#ifdef GDK_WINDOWING_X11
+#include <X11/Xlib.h>
+#endif
+#endif	// __WXGTK__
 
 using namespace pxSizerFlags;
 
@@ -310,14 +318,15 @@ bool Pcsx2App::OnCmdLineParsed(wxCmdLineParser& parser)
 	{
 		wxString elf_file;
 		if (parser.Found(L"elf", &elf_file) && !elf_file.IsEmpty())
-		{
 			Startup.SysAutoRunElf = true;
-			Startup.ElfFile = elf_file;
-		}
 		else if (parser.Found(L"irx", &elf_file) && !elf_file.IsEmpty())
-		{
 			Startup.SysAutoRunIrx = true;
-			Startup.ElfFile = elf_file;
+
+		if (!elf_file.IsEmpty())
+		{
+			auto path = wxFileName(elf_file);
+			path.Normalize();
+			Startup.ElfFile = path.GetFullPath();
 		}
 	}
 
@@ -458,7 +467,7 @@ bool Pcsx2App::OnInit()
 		(new GameDatabaseLoaderThread())->Start();
 
 		// By default no IRX injection
-		g_Conf->CurrentIRX = "";
+		EmuConfig.CurrentIRX.clear();
 
 		if (Startup.SysAutoRun)
 		{
@@ -467,7 +476,7 @@ bool Pcsx2App::OnInit()
 			if (Startup.CdvdSource == CDVD_SourceType::Iso)
 				SysUpdateIsoSrcFile(Startup.IsoFile);
 			sApp.SysExecute(Startup.CdvdSource);
-			g_Conf->CurrentGameArgs = Startup.GameLaunchArgs;
+			EmuConfig.CurrentGameArgs = StringUtil::wxStringToUTF8String(Startup.GameLaunchArgs);
 		}
 		else if (Startup.SysAutoRunElf)
 		{
@@ -495,7 +504,7 @@ bool Pcsx2App::OnInit()
 		{
 			g_Conf->EmuOptions.UseBOOT2Injection = true;
 
-			g_Conf->CurrentIRX = Startup.ElfFile;
+			EmuConfig.CurrentIRX = StringUtil::wxStringToUTF8String(Startup.ElfFile);
 
 			// FIXME: ElfFile is an irx it will crash
 			sApp.SysExecute(Startup.CdvdSource, Startup.ElfFile);
@@ -704,6 +713,11 @@ Pcsx2App::Pcsx2App()
 
 		_("Show about dialog.")
 	}
+#endif
+
+#ifdef GDK_WINDOWING_X11
+	// This *must* be done in the constructor, before wx starts making X calls.
+	XInitThreads();
 #endif
 
 	m_PendingSaves = 0;

@@ -18,14 +18,11 @@
 #include "MainFrame.h"
 #include "GSFrame.h"
 #include "GS.h"
+#include "Host.h"
 #include "AppSaveStates.h"
 #include "AppGameDatabase.h"
 #include "AppAccelerators.h"
-#ifdef _WIN32
-#include "PAD/Windows/PAD.h"
-#else
-#include "PAD/Linux/PAD.h"
-#endif
+#include "PAD/Gamepad.h"
 
 #include "ps2/BiosTools.h"
 
@@ -41,6 +38,7 @@
 #endif
 
 #include "common/IniInterface.h"
+#include "common/StringUtil.h"
 #include "common/AppTrait.h"
 
 #include <wx/stdpaths.h>
@@ -52,6 +50,10 @@
 #ifdef __WXGTK__
 #include <gdk/gdkx.h>
 #include <gtk/gtk.h>
+
+#ifdef GDK_WINDOWING_WAYLAND
+#include <gdk/gdkwayland.h>
+#endif
 #endif
 
 // Safe to remove these lines when this is handled properly.
@@ -71,7 +73,7 @@ wxIMPLEMENT_APP(Pcsx2App);
 
 std::unique_ptr<AppConfig> g_Conf;
 
-uptr pDsp[2];
+WindowInfo g_gs_window_info;
 
 // Returns a string message telling the user to consult guides for obtaining a legal BIOS.
 // This message is in a function because it's used as part of several dialogs in PCSX2 (there
@@ -202,9 +204,9 @@ extern int TranslateVKToWXK( u32 keysym );
 extern int TranslateGDKtoWXK( u32 keysym );
 #endif
 
-void Pcsx2App::PadKeyDispatch( const keyEvent& ev )
+void Pcsx2App::PadKeyDispatch(const HostKeyEvent& ev)
 {
-	m_kevt.SetEventType( ( ev.evt == KEYPRESS ) ? wxEVT_KEY_DOWN : wxEVT_KEY_UP );
+	m_kevt.SetEventType( ( ev.type == HostKeyEvent::Type::KeyPressed ) ? wxEVT_KEY_DOWN : wxEVT_KEY_UP );
 
 //returns 0 for normal keys and a WXK_* value for special keys
 #ifdef __WXMSW__
@@ -458,10 +460,21 @@ void Pcsx2App::LogicalVsync()
 
 	FpsManager.DoFrame();
 
-	if (g_Conf->GSWindow.FMVAspectRatioSwitch != FMV_AspectRatio_Switch_Off) {
+	if (EmuConfig.GS.FMVAspectRatioSwitch != FMVAspectRatioSwitchType::Off) {
 		if (EnableFMV) {
 			DevCon.Warning("FMV on");
-			GSSetFMVSwitch(true);
+
+			switch (EmuConfig.GS.FMVAspectRatioSwitch)
+			{
+			case FMVAspectRatioSwitchType::R4_3:
+				EmuConfig.CurrentAspectRatio = AspectRatioType::R4_3;
+				break;
+			case FMVAspectRatioSwitchType::R16_9:
+				EmuConfig.CurrentAspectRatio = AspectRatioType::R16_9;
+				break;
+			default:
+				break;
+			}
 			EnableFMV = false;
 		}
 
@@ -469,7 +482,7 @@ void Pcsx2App::LogicalVsync()
 			int diff = cpuRegs.cycle - eecount_on_last_vdec;
 			if (diff > 60000000 ) {
 				DevCon.Warning("FMV off");
-				GSSetFMVSwitch(false);
+				EmuConfig.CurrentAspectRatio = EmuConfig.GS.AspectRatio;
 				FMVstarted = false;
 			}
 		}
@@ -478,7 +491,7 @@ void Pcsx2App::LogicalVsync()
 	if( (wxGetApp().GetGsFramePtr() != NULL) )
 		PADupdate(0);
 
-	while( const keyEvent* ev = PADkeyEvent() )
+	while( const HostKeyEvent* ev = PADkeyEvent() )
 	{
 		if( ev->key == 0 ) break;
 
@@ -487,7 +500,7 @@ void Pcsx2App::LogicalVsync()
 		// sucked and we had multiple components battling for input processing. I managed to make
 		// most of them go away during the plugin merge but GS still needs to process the inputs,
 		// we might want to move all the input handling in a frontend-specific file in the future -- govanify
-		GSkeyEvent((GSKeyEventData*)ev);
+		GSkeyEvent(*ev);
 		PadKeyDispatch( *ev );
 	}
 }
@@ -529,7 +542,7 @@ void Pcsx2App::HandleEvent(wxEvtHandler* handler, wxEventFunction func, wxEvent&
 				// When the GSFrame CoreThread is paused, so is the logical VSync
 				// Meaning that we have to grab the user-input through here to potentially
 				// resume emulation.
-				if (const keyEvent* ev = PADkeyEvent() )
+				if (const HostKeyEvent* ev = PADkeyEvent() )
 				{
 					if( ev->key != 0 )
 					{
@@ -722,8 +735,6 @@ void AppApplySettings( const AppConfig* oldconf )
 	g_Conf->Folders.Cheats.Mkdir();
 	g_Conf->Folders.CheatsWS.Mkdir();
 
-	g_Conf->EmuOptions.BiosFilename = g_Conf->FullpathToBios();
-
 	RelocateLogfile();
 
 	if( (oldconf == NULL) || (oldconf->LanguageCode.CmpNoCase(g_Conf->LanguageCode)) )
@@ -736,7 +747,7 @@ void AppApplySettings( const AppConfig* oldconf )
 	// Memcards generally compress very well via NTFS compression.
 
 	#ifdef __WXMSW__
-	NTFS_CompressFile( g_Conf->Folders.MemoryCards.ToString(), g_Conf->McdCompressNTFS );
+	NTFS_CompressFile( g_Conf->Folders.MemoryCards.ToString(), g_Conf->EmuOptions.McdCompressNTFS );
 	#endif
 	sApp.DispatchEvent( AppStatus_SettingsApplied );
 
@@ -853,39 +864,12 @@ void Pcsx2App::OpenGsPanel()
 
     pxAssertDev( !gsopen_done, "GS must be closed prior to opening a new Gs Panel!" );
 
-#ifdef __WXGTK__
-	// The x window/display are actually very deeper in the widget. You need both display and window
-	// because unlike window there are unrelated. One could think it would be easier to send directly the GdkWindow.
-	// Unfortunately there is a race condition between gui and gs threads when you called the
-	// GDK_WINDOW_* macro. To be safe I think it is best to do here. -- Gregory
+	gsFrame->ShowFullScreen(g_Conf->GSWindow.IsFullscreen);
+	wxApp::ProcessPendingEvents();
 
-	// GTK_PIZZA is an internal interface of wx, therefore they decide to
-	// remove it on wx 3. I tryed to replace it with gtk_widget_get_window but
-	// unfortunately it creates a gray box in the middle of the window on some
-	// users.
-
-	GtkWidget *child_window = GTK_WIDGET(gsFrame->GetViewport()->GetHandle());
-
-	gtk_widget_realize(child_window); // create the widget to allow to use GDK_WINDOW_* macro
-	gtk_widget_set_double_buffered(child_window, false); // Disable the widget double buffer, you will use the opengl one
-
-	GdkWindow* draw_window = gtk_widget_get_window(child_window);
-
-#if GTK_MAJOR_VERSION < 3
-	Window Xwindow = GDK_WINDOW_XWINDOW(draw_window);
-#else
-	Window Xwindow = GDK_WINDOW_XID(draw_window);
-#endif
-	Display* XDisplay = GDK_WINDOW_XDISPLAY(draw_window);
-
-	pDsp[0] = (uptr)XDisplay;
-	pDsp[1] = (uptr)Xwindow;
-#else
-	pDsp[0] = (uptr)gsFrame->GetViewport()->GetHandle();
-	pDsp[1] = NULL;
-#endif
-
-	gsFrame->ShowFullScreen( g_Conf->GSWindow.IsFullscreen );
+	std::optional<WindowInfo> wi = gsFrame->GetViewport()->GetWindowInfo();
+	pxAssertDev(wi.has_value(), "GS frame has a valid native window");
+	g_gs_window_info = std::move(*wi);
 
 #ifndef DISABLE_RECORDING
 	// Enable New & Play after the first game load of the session
@@ -998,13 +982,15 @@ protected:
 		DbgCon.WriteLn( Color_Gray, "(SysExecute) received." );
 
 		CoreThread.ResetQuick();
-		symbolMap.Clear();
+		R5900SymbolMap.Clear();
+		R3000SymbolMap.Clear();
 		CBreakPoints::SetSkipFirst(BREAKPOINT_EE, 0);
 		CBreakPoints::SetSkipFirst(BREAKPOINT_IOP, 0);
 		// This function below gets called again from AppCoreThread.cpp and will pass the current ISO regardless if we
 		// are starting an ELF. In terms of symbol loading this doesn't matter because AppCoreThread.cpp doesn't clear the symbol map
 		// and we _only_ read symbols if the map is empty
-		CDVDsys_SetFile(CDVD_SourceType::Iso, m_UseELFOverride ? m_elf_override : g_Conf->CurrentIso );
+		CDVDsys_SetFile(CDVD_SourceType::Disc, StringUtil::wxStringToUTF8String(g_Conf->Folders.RunDisc) );
+		CDVDsys_SetFile(CDVD_SourceType::Iso, StringUtil::wxStringToUTF8String(m_UseELFOverride ? m_elf_override : g_Conf->CurrentIso) );
 		if( m_UseCDVDsrc )
 			CDVDsys_ChangeSource( m_cdvdsrc_type );
 		else if( CDVD == NULL )
@@ -1098,16 +1084,6 @@ MainEmuFrame* GetMainFramePtr()
 SysMainMemory& GetVmMemory()
 {
 	return wxGetApp().GetVmReserve();
-}
-
-SysCoreThread& GetCoreThread()
-{
-	return CoreThread;
-}
-
-SysMtgsThread& GetMTGS()
-{
-	return mtgsThread;
 }
 
 SysCpuProviderPack& GetCpuProviders()

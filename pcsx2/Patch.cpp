@@ -1,5 +1,5 @@
 /*  PCSX2 - PS2 Emulator for PCs
- *  Copyright (C) 2002-2010  PCSX2 Dev Team
+ *  Copyright (C) 2002-2021  PCSX2 Dev Team
  *
  *  PCSX2 is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU Lesser General Public License as published by the Free Software Found-
@@ -19,6 +19,7 @@
 
 #include "IopCommon.h"
 #include "Patch.h"
+#include "Config.h"
 
 #include <memory>
 #include <vector>
@@ -133,12 +134,12 @@ int LoadPatchesFromGamesDB(const wxString& crc, const GameDatabaseSchema::GameEn
 	if (game.isValid)
 	{
 		GameDatabaseSchema::Patch patch;
-		bool patchFound = game.findPatch(std::string(crc), patch);
+		bool patchFound = game.findPatch(std::string(crc.ToUTF8()), patch);
 		if (patchFound && patch.patchLines.size() > 0)
 		{
 			for (auto line : patch.patchLines)
 			{
-				inifile_command(line);
+				inifile_command(fromUTF8(line));
 			}
 		}
 	}
@@ -247,10 +248,7 @@ int LoadPatchesFromDir(wxString name, const wxDirName& folderName, const wxStrin
 	wxString filespec = name + L"*.pnach";
 	loaded += _LoadPatchFiles(folderName, filespec, friendlyName, numberFoundPatchFiles);
 
-	// This comment _might_ be buggy. This function (LoadPatchesFromDir) loads from an explicit folder.
-	// This folder can be cheats or cheats_ws at either the default location or a custom one.
-	// This check only tests the default cheats folder, so the message it produces is possibly misleading.
-	if (folderName.ToString().IsSameAs(PathDefs::GetCheats().ToString()) && numberFoundPatchFiles == 0)
+	if (folderName.ToString().IsSameAs(EmuFolders::Cheats.ToString()) && numberFoundPatchFiles == 0)
 	{
 		wxString pathName = Path::Combine(folderName, name.MakeUpper() + L".pnach");
 		PatchesCon->WriteLn(Color_Gray, L"Not found %s file: %s", WX_STR(friendlyName), WX_STR(pathName));

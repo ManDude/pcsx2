@@ -18,6 +18,7 @@ set(PCSX2_DEFS "")
 option(DISABLE_BUILD_DATE "Disable including the binary compile date")
 option(ENABLE_TESTS "Enables building the unit tests" ON)
 option(USE_SYSTEM_YAML "Uses a system version of yaml, if found")
+option(LTO_PCSX2_CORE "Enable LTO/IPO/LTCG on the subset of pcsx2 that benefits most from it but not anything else")
 
 if(WIN32)
 	set(DEFAULT_NATIVE_TOOLS ON)
@@ -50,10 +51,14 @@ option(PORTAUDIO_API "Build portaudio support on SPU2" ON)
 option(SDL2_API "Use SDL2 on SPU2 and PAD Linux (wxWidget mustn't be built with SDL1.2 support" ON)
 option(GTK2_API "Use GTK2 api (legacy)")
 
+if(UNIX AND NOT APPLE)
+	option(X11_API "Enable X11 support" ON)
+	option(WAYLAND_API "Enable Wayland support" OFF)
+endif()
+
 if(PACKAGE_MODE)
 	# Compile all source codes with those defines
 	list(APPEND PCSX2_DEFS
-		PLUGIN_DIR_COMPILATION=${CMAKE_INSTALL_FULL_LIBDIR}/PCSX2
 		GAMEINDEX_DIR_COMPILATION=${CMAKE_INSTALL_FULL_DATADIR}/PCSX2
 		DOC_DIR_COMPILATION=${CMAKE_INSTALL_FULL_DOCDIR})
 endif()
@@ -106,7 +111,7 @@ set(CMAKE_EXE_LINKER_FLAGS_DEVEL "${CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO}"
 if(CMAKE_CONFIGURATION_TYPES)
 	list(INSERT CMAKE_CONFIGURATION_TYPES 0 Devel)
 endif()
-mark_as_advanced(CMAKE_C_FLAGS_PROF CMAKE_CXX_FLAGS_PROF CMAKE_LINKER_FLAGS_PROF CMAKE_SHARED_LINKER_FLAGS_PROF)
+mark_as_advanced(CMAKE_C_FLAGS_DEVEL CMAKE_CXX_FLAGS_DEVEL CMAKE_LINKER_FLAGS_DEVEL CMAKE_SHARED_LINKER_FLAGS_DEVEL CMAKE_EXE_LINKER_FLAGS_DEVEL)
 # AVX2 doesn't play well with gdb
 if(CMAKE_BUILD_TYPE MATCHES "Debug")
 	SET(DISABLE_ADVANCE_SIMD ON)
@@ -116,15 +121,7 @@ endif()
 # It only cost several MB so disbable it by default
 option(CMAKE_BUILD_STRIP "Srip binaries to save a couple of MB (developer option)")
 
-if(NOT DEFINED CMAKE_BUILD_PO)
-	if(CMAKE_BUILD_TYPE STREQUAL "Release")
-		set(CMAKE_BUILD_PO TRUE)
-		message(STATUS "Enable the building of po files by default in ${CMAKE_BUILD_TYPE} build !!!")
-	else()
-		set(CMAKE_BUILD_PO FALSE)
-		message(STATUS "Disable the building of po files by default in ${CMAKE_BUILD_TYPE} build !!!")
-	endif()
-endif()
+option(CMAKE_BUILD_PO "Build po files (modifies git-tracked files)" OFF)
 
 #-------------------------------------------------------------------------------
 # Select the architecture
@@ -208,34 +205,6 @@ string(REPLACE " " ";" ARCH_FLAG_LIST "${ARCH_FLAG}")
 add_compile_options("${ARCH_FLAG_LIST}")
 
 #-------------------------------------------------------------------------------
-# Control GCC flags
-#-------------------------------------------------------------------------------
-### Cmake set default value for various compilation variable
-### Here the list of default value for documentation purpose
-# ${CMAKE_SHARED_LIBRARY_CXX_FLAGS} = "-fPIC"
-# ${CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS} = "-rdynamic"
-#
-# ${CMAKE_C_FLAGS} = "-g -O2"
-# ${CMAKE_CXX_FLAGS} = "-g -O2"
-# Use in debug mode
-# ${CMAKE_CXX_FLAGS_DEBUG} = "-g"
-# Use in release mode
-# ${CMAKE_CXX_FLAGS_RELEASE} = "-O3 -DNDEBUG"
-
-#-------------------------------------------------------------------------------
-# Remove bad default option
-#-------------------------------------------------------------------------------
-# Remove -rdynamic option that can some segmentation fault when openining pcsx2 plugins
-set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
-set(CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS "")
-if(${PCSX2_TARGET_ARCHITECTURES} MATCHES "i386")
-	# Remove -fPIC option on 32bit architectures.
-	# No good reason to use it for plugins, also it impacts performance.
-	set(CMAKE_SHARED_LIBRARY_C_FLAGS "")
-	set(CMAKE_SHARED_LIBRARY_CXX_FLAGS "")
-endif()
-
-#-------------------------------------------------------------------------------
 # Set some default compiler flags
 #-------------------------------------------------------------------------------
 option(USE_PGO_GENERATE "Enable PGO optimization (generate profile)")
@@ -243,16 +212,36 @@ option(USE_PGO_OPTIMIZE "Enable PGO optimization (use profile)")
 
 # Note1: Builtin strcmp/memcmp was proved to be slower on Mesa than stdlib version.
 # Note2: float operation SSE is impacted by the PCSX2 SSE configuration. In particular, flush to zero denormal.
-if(NOT MSVC)
-	add_compile_options(-pipe -fvisibility=hidden -pthread -fno-builtin-strcmp -fno-builtin-memcmp -mfpmath=sse -fno-operator-names)
+if(MSVC)
+	add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:/Zc:externConstexpr>")
+else()
+	add_compile_options(-pipe -fvisibility=hidden -pthread -fno-builtin-strcmp -fno-builtin-memcmp -mfpmath=sse)
+
+	# -fno-operator-names should only be for C++ files, not C files.
+	add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fno-operator-names>)
 endif()
 
 if(WIN32)
+	add_compile_definitions(
+		$<$<CONFIG:Debug>:_ITERATOR_DEBUG_LEVEL=2>
+		$<$<CONFIG:Devel>:_ITERATOR_DEBUG_LEVEL=1>
+		$<$<CONFIG:RelWithDebInfo>:_ITERATOR_DEBUG_LEVEL=0>
+		$<$<CONFIG:MinSizeRel>:_ITERATOR_DEBUG_LEVEL=0>
+		$<$<CONFIG:Release>:_ITERATOR_DEBUG_LEVEL=0>
+	)
 	list(APPEND PCSX2_DEFS TIXML_USE_STL _SCL_SECURE_NO_WARNINGS _UNICODE UNICODE)
 endif()
 
 if(USE_VTUNE)
 	list(APPEND PCSX2_DEFS ENABLE_VTUNE)
+endif()
+
+if(X11_API)
+	list(APPEND PCSX2_DEFS X11_API)
+endif()
+
+if(WAYLAND_API)
+	list(APPEND PCSX2_DEFS WAYLAND_API)
 endif()
 
 # -Wno-attributes: "always_inline function might not be inlinable" <= real spam (thousand of warnings!!!)
@@ -336,9 +325,9 @@ endif()
 # MacOS-specific things
 #-------------------------------------------------------------------------------
 
-set(CMAKE_OSX_DEPLOYMENT_TARGET 10.9)
+set(CMAKE_OSX_DEPLOYMENT_TARGET 10.13)
 
-if (APPLE AND ${CMAKE_OSX_DEPLOYMENT_TARGET} VERSION_LESS 10.14 AND NOT ${CMAKE_CXX_COMPILER_VERSION} VERSION_LESS 10)
+if (APPLE AND ${CMAKE_OSX_DEPLOYMENT_TARGET} VERSION_LESS 10.14 AND NOT ${CMAKE_CXX_COMPILER_VERSION} VERSION_LESS 9)
 	# Older versions of the macOS stdlib don't have operator new(size_t, align_val_t)
 	# Disable use of them with this flag
 	# Not great, but also no worse that what we were getting before we turned on C++17

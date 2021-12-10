@@ -15,6 +15,7 @@ if (WIN32)
 	add_subdirectory(3rdparty/portaudio EXCLUDE_FROM_ALL)
 	add_subdirectory(3rdparty/pthreads4w EXCLUDE_FROM_ALL)
 	add_subdirectory(3rdparty/soundtouch EXCLUDE_FROM_ALL)
+	add_subdirectory(3rdparty/wil EXCLUDE_FROM_ALL)
 	add_subdirectory(3rdparty/wxwidgets3.0 EXCLUDE_FROM_ALL)
 	add_subdirectory(3rdparty/xz EXCLUDE_FROM_ALL)
 else()
@@ -118,21 +119,31 @@ else()
 	## Use CheckLib package to find module
 	include(CheckLib)
 
-	if(Linux)
+	if(UNIX AND NOT APPLE)
 		check_lib(EGL EGL EGL/egl.h)
-		check_lib(X11_XCB X11-xcb X11/Xlib-xcb.h)
-		check_lib(XCB xcb xcb/xcb.h)
-		check_lib(AIO aio libaio.h)
-		# There are two udev pkg config files - udev.pc (wrong), libudev.pc (correct)
-		# When cross compiling, pkg-config will be skipped so we have to look for
-		# udev (it'll automatically be prefixed with lib). But when not cross
-		# compiling, we have to look for libudev.pc. Argh. Hence the silliness below.
-		if(CMAKE_CROSSCOMPILING)
-			check_lib(LIBUDEV udev libudev.h)
-		else()
-			check_lib(LIBUDEV libudev libudev.h)
+		if(X11_API)
+			check_lib(X11_XCB X11-xcb X11/Xlib-xcb.h)
+			check_lib(XCB xcb xcb/xcb.h)
+			check_lib(XRANDR xrandr)
+		endif()
+		if(WAYLAND_API)
+			find_package(Wayland REQUIRED)
+		endif()
+
+		if(Linux)
+			check_lib(AIO aio libaio.h)
+			# There are two udev pkg config files - udev.pc (wrong), libudev.pc (correct)
+			# When cross compiling, pkg-config will be skipped so we have to look for
+			# udev (it'll automatically be prefixed with lib). But when not cross
+			# compiling, we have to look for libudev.pc. Argh. Hence the silliness below.
+			if(CMAKE_CROSSCOMPILING)
+				check_lib(LIBUDEV udev libudev.h)
+			else()
+				check_lib(LIBUDEV libudev libudev.h)
+			endif()
 		endif()
 	endif()
+
 	if(PORTAUDIO_API)
 		check_lib(PORTAUDIO portaudio portaudio.h pa_linux_alsa.h)
 	endif()
@@ -152,7 +163,9 @@ else()
 		find_package(X11 REQUIRED)
 		make_imported_target_if_missing(X11::X11 X11)
 	endif()
-	if(UNIX)
+	if(APPLE)
+		check_lib(GIO gio-2.0 gio/gio.h)
+	elseif(UNIX)
 		# Most plugins (if not all) and PCSX2 core need gtk2, so set the required flags
 		if (GTK2_API)
 			find_package(GTK2 REQUIRED gtk)
@@ -167,6 +180,9 @@ else()
 		endif()
 		endif()
 	endif()
+	if(WAYLAND_API)
+		find_package(Wayland REQUIRED)
+	endif()
 
 	#----------------------------------------
 	#           Use system include
@@ -174,6 +190,9 @@ else()
 	find_package(HarfBuzz)
 
 endif(WIN32)
+
+# Require threads on all OSes.
+find_package(Threads REQUIRED)
 
 set(ACTUALLY_ENABLE_TESTS ${ENABLE_TESTS})
 if(ENABLE_TESTS)
@@ -251,3 +270,5 @@ else()
 	set(BIN2CPP perl ${CMAKE_SOURCE_DIR}/linux_various/hex2h.pl)
 	set(BIN2CPPDEP ${CMAKE_SOURCE_DIR}/linux_various/hex2h.pl)
 endif()
+
+add_subdirectory(3rdparty/glad EXCLUDE_FROM_ALL)

@@ -20,6 +20,7 @@
 
 #ifdef _WIN32
 #include "Window/GSCaptureDlg.h"
+#include <wil/com.h>
 #endif
 
 class GSCapture
@@ -27,14 +28,14 @@ class GSCapture
 	std::recursive_mutex m_lock;
 	bool m_capturing;
 	GSVector2i m_size;
-	uint64 m_frame;
+	u64 m_frame;
 	std::string m_out_dir;
 	int m_threads;
 
 #ifdef _WIN32
 
-	CComPtr<IGraphBuilder> m_graph;
-	CComPtr<IBaseFilter> m_src;
+	wil::com_ptr_failfast<IGraphBuilder> m_graph;
+	wil::com_ptr_failfast<IBaseFilter> m_src;
 
 #elif defined(__unix__)
 

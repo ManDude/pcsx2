@@ -17,15 +17,15 @@
 #include "Global.h"
 #include "spu2.h"
 #include "Dma.h"
-#if defined(__linux__) || defined(__APPLE__)
+#if defined(_WIN32)
+#include "Windows/Dialogs.h"
+#else // BSD, Macos
 #include "Linux/Dialogs.h"
 #include "Linux/Config.h"
-#elif defined(_WIN32)
-#include "Windows/Dialogs.h"
 #endif
 #include "R3000A.h"
 #include "common/pxStreams.h"
-#include "AppCoreThread.h"
+#include "gui/AppCoreThread.h"
 
 using namespace Threading;
 
@@ -40,25 +40,9 @@ u32 lClocks = 0;
 
 void SPU2configure()
 {
-	ScopedCoreThreadPause paused_core;
-
-	SndBuffer::Cleanup();
+	ScopedCoreThreadPause paused_core(SystemsMask::System_SPU2);
 
 	configure();
-
-	if (IsOpened)
-	{
-		try
-		{
-			Console.Warning("SPU2: Sound output module reset");
-			SndBuffer::Init();
-		}
-		catch (std::exception& ex)
-		{
-			fprintf(stderr, "SPU2 Error: Could not initialize device, or something.\nReason: %s", ex.what());
-			SPU2close();
-		}
-	}
 	paused_core.AllowResume();
 }
 
@@ -131,7 +115,7 @@ void SPU2writeDMA7Mem(u16* pMem, u32 size)
 
 s32 SPU2reset(PS2Modes isRunningPSXMode)
 {
-	u32 requiredSampleRate = (isRunningPSXMode == PS2Modes::PSX) ? 44100 : 48000;
+	int requiredSampleRate = (isRunningPSXMode == PS2Modes::PSX) ? 44100 : 48000;
 
 	if (isRunningPSXMode == PS2Modes::PS2)
 	{
@@ -266,18 +250,13 @@ static INT_PTR CALLBACK DebugProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lP
 #endif
 uptr gsWindowHandle = 0;
 
-s32 SPU2open(void* pDsp)
+s32 SPU2open()
 {
 	ScopedLock lock(mtx_SPU2Status);
 	if (IsOpened)
 		return 0;
 
 	FileLog("[%10d] SPU2 Open\n", Cycles);
-
-	if (pDsp != nullptr)
-		gsWindowHandle = *(uptr*)pDsp;
-	else
-		gsWindowHandle = 0;
 
 #ifdef _MSC_VER
 #ifdef PCSX2_DEVBUILD // Define may not be needed but not tested yet. Better make sure.

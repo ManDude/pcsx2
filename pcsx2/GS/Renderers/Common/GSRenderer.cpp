@@ -16,6 +16,7 @@
 #include "PrecompiledHeader.h"
 #include "GSRenderer.h"
 #include "gui/AppConfig.h"
+#include "GS/GSGL.h"
 #if defined(__unix__)
 #include <X11/keysym.h>
 #endif
@@ -29,9 +30,7 @@ GSRenderer::GSRenderer()
 	, m_shift_key(false)
 	, m_control_key(false)
 	, m_texture_shuffle(false)
-	, m_fmv_switch(false)
 	, m_real_size(0, 0)
-	, m_wnd()
 	, m_dev(NULL)
 {
 	m_GStitleInfoBuffer[0] = 0;
@@ -56,12 +55,12 @@ GSRenderer::~GSRenderer()
 	delete m_dev;
 }
 
-bool GSRenderer::CreateDevice(GSDevice* dev)
+bool GSRenderer::CreateDevice(GSDevice* dev, const WindowInfo& wi)
 {
 	ASSERT(dev);
 	ASSERT(!m_dev);
 
-	if (!dev->Create(m_wnd))
+	if (!dev->Create(wi))
 	{
 		return false;
 	}
@@ -312,28 +311,10 @@ GSVector4i GSRenderer::ComputeDrawRectangle(int width, int height) const
 
 	double targetAr = clientAr;
 
-	if (m_fmv_switch)
-	{
-		if (g_Conf->GSWindow.FMVAspectRatioSwitch == FMV_AspectRatio_Switch_4_3)
-		{
-			targetAr = 4.0 / 3.0;
-		}
-		else if (g_Conf->GSWindow.FMVAspectRatioSwitch == FMV_AspectRatio_Switch_16_9)
-		{
-			targetAr = 16.0 / 9.0;
-		}
-	}
-	else
-	{
-		if (g_Conf->GSWindow.AspectRatio == AspectRatio_4_3)
-		{
-			targetAr = 4.0 / 3.0;
-		}
-		else if (g_Conf->GSWindow.AspectRatio == AspectRatio_16_9)
-		{
-			targetAr = 16.0 / 9.0;
-		}
-	}
+	if (EmuConfig.CurrentAspectRatio == AspectRatioType::R4_3)
+		targetAr = 4.0 / 3.0;
+	else if (EmuConfig.CurrentAspectRatio == AspectRatioType::R16_9)
+		targetAr = 16.0 / 9.0;
 
 	const double arr = targetAr / clientAr;
 	double target_width = f_width;
@@ -343,12 +324,12 @@ GSVector4i GSRenderer::ComputeDrawRectangle(int width, int height) const
 	else if (arr > 1)
 		target_height = std::floor(f_height / arr + 0.5);
 
-	float zoom = g_Conf->GSWindow.Zoom / 100.0;
+	float zoom = EmuConfig.GS.Zoom / 100.0;
 	if (zoom == 0) //auto zoom in untill black-bars are gone (while keeping the aspect ratio).
 		zoom = std::max((float)arr, (float)(1.0 / arr));
 
 	target_width *= zoom;
-	target_height *= zoom * g_Conf->GSWindow.StretchY / 100.0;
+	target_height *= zoom * EmuConfig.GS.StretchY / 100.0;
 
 	double target_x, target_y;
 	if (target_width > f_width)
@@ -361,8 +342,8 @@ GSVector4i GSRenderer::ComputeDrawRectangle(int width, int height) const
 		target_y = (f_height - target_height) * 0.5;
 
 	const double unit = .01 * std::min(target_x, target_y);
-	target_x += unit * g_Conf->GSWindow.OffsetX;
-	target_y += unit * g_Conf->GSWindow.OffsetY;
+	target_x += unit * EmuConfig.GS.OffsetX;
+	target_y += unit * EmuConfig.GS.OffsetY;
 
 	return GSVector4i(
 		static_cast<int>(std::floor(target_x)),
@@ -412,18 +393,13 @@ void GSRenderer::VSync(int field)
 	{
 		m_perfmon.Update();
 
-		double fps = 1000.0f / m_perfmon.Get(GSPerfMon::Frame);
-
 		std::string s;
 
 #ifdef GSTITLEINFO_API_FORCE_VERBOSE
-		if (1) //force verbose reply
-#else
-		if (m_wnd->IsManaged())
-#endif
 		{
+			const double fps = 1000.0f / m_perfmon.Get(GSPerfMon::Frame);
 			//GS owns the window's title, be verbose.
-			static const char* aspect_ratio_names[AspectRatio_MaxCount] = { "Stretch", "4:3", "16:9" };
+			static const char* aspect_ratio_names[static_cast<int>(AspectRatioType::MaxCount)] = { "Stretch", "4:3", "16:9" };
 
 			std::string s2 = m_regs->SMODE2.INT ? (std::string("Interlaced ") + (m_regs->SMODE2.FFMD ? "(frame)" : "(field)")) : "Progressive";
 
@@ -432,7 +408,7 @@ void GSRenderer::VSync(int field)
 				m_perfmon.GetFrame(), GetInternalResolution().x, GetInternalResolution().y, fps, (int)(100.0 * fps / GetTvRefreshRate()),
 				s2.c_str(),
 				theApp.m_gs_interlace[m_interlace].name.c_str(),
-				aspect_ratio_names[g_Conf->GSWindow.AspectRatio],
+				aspect_ratio_names[static_cast<int>(EmuConfig.GS.AspectRatio)],
 				(int)m_perfmon.Get(GSPerfMon::SyncPoint),
 				(int)m_perfmon.Get(GSPerfMon::Prim),
 				(int)m_perfmon.Get(GSPerfMon::Draw),
@@ -456,41 +432,29 @@ void GSRenderer::VSync(int field)
 				s += format(" | %d%% CPU", sum);
 			}
 		}
-		else
+#else
 		{
 			// Satisfy PCSX2's request for title info: minimal verbosity due to more external title text
 
 			s = format("%dx%d | %s", GetInternalResolution().x, GetInternalResolution().y, theApp.m_gs_interlace[m_interlace].name.c_str());
 		}
+#endif
 
 		if (m_capture.IsCapturing())
 		{
 			s += " | Recording...";
 		}
 
-		if (m_wnd->IsManaged())
-		{
-			m_wnd->SetWindowText(s.c_str());
-		}
-		else
-		{
-			// note: do not use TryEnterCriticalSection.  It is unnecessary code complication in
-			// an area that absolutely does not matter (even if it were 100 times slower, it wouldn't
-			// be noticeable).  Besides, these locks are extremely short -- overhead of conditional
-			// is way more expensive than just waiting for the CriticalSection in 1 of 10,000,000 tries. --air
+		// note: do not use TryEnterCriticalSection.  It is unnecessary code complication in
+		// an area that absolutely does not matter (even if it were 100 times slower, it wouldn't
+		// be noticeable).  Besides, these locks are extremely short -- overhead of conditional
+		// is way more expensive than just waiting for the CriticalSection in 1 of 10,000,000 tries. --air
 
-			std::lock_guard<std::mutex> lock(m_pGSsetTitle_Crit);
+		std::lock_guard<std::mutex> lock(m_pGSsetTitle_Crit);
 
-			strncpy(m_GStitleInfoBuffer, s.c_str(), countof(m_GStitleInfoBuffer) - 1);
+        strncpy(m_GStitleInfoBuffer, s.c_str(), std::size(m_GStitleInfoBuffer) - 1);
 
-			m_GStitleInfoBuffer[sizeof(m_GStitleInfoBuffer) - 1] = 0; // make sure null terminated even if text overflows
-		}
-	}
-	else
-	{
-		// [TODO]
-		// We don't have window title rights, or the window has no title,
-		// so let's use actual OSD!
+		m_GStitleInfoBuffer[sizeof(m_GStitleInfoBuffer) - 1] = 0; // make sure null terminated even if text overflows
 	}
 
 	if (m_frameskip)
@@ -502,7 +466,7 @@ void GSRenderer::VSync(int field)
 
 	// This will scale the OSD to the window's size.
 	// Will maintiain the font size no matter what size the window is.
-	GSVector4i window_size = m_wnd->GetClientRect();
+	GSVector4i window_size(0, 0, m_dev->GetBackbufferWidth(), m_dev->GetBackbufferHeight());
 	m_dev->m_osd.m_real_size.x = window_size.v[2];
 	m_dev->m_osd.m_real_size.y = window_size.v[3];
 
@@ -516,7 +480,7 @@ void GSRenderer::VSync(int field)
 		{
 			freezeData fd = {0, nullptr};
 			Freeze(&fd, true);
-			fd.data = new char[fd.size];
+			fd.data = new u8[fd.size];
 			Freeze(&fd, false);
 
 			if (m_control_key)
@@ -548,18 +512,17 @@ void GSRenderer::VSync(int field)
 		{
 			GSVector2i size = m_capture.GetSize();
 
-			if (GSTexture* offscreen = m_dev->CopyOffscreen(current, GSVector4(0, 0, 1, 1), size.x, size.y))
+			bool res;
+			GSTexture::GSMap m;
+			if (size == current->GetSize())
+				res = m_dev->DownloadTexture(current, GSVector4i(0, 0, size.x, size.y), m);
+			else
+				res = m_dev->DownloadTextureConvert(current, GSVector4(0, 0, 1, 1), size, GSTexture::Format::Color, ShaderConvert::COPY, m);
+
+			if (res)
 			{
-				GSTexture::GSMap m;
-
-				if (offscreen->Map(m))
-				{
-					m_capture.DeliverFrame(m.bits, m.pitch, !m_dev->IsRBSwapped());
-
-					offscreen->Unmap();
-				}
-
-				m_dev->Recycle(offscreen);
+				m_capture.DeliverFrame(m.bits, m.pitch, !m_dev->IsRBSwapped());
+				m_dev->DownloadTextureComplete();
 			}
 		}
 	}
@@ -602,8 +565,7 @@ bool GSRenderer::MakeSnapshot(const std::string& path)
 
 bool GSRenderer::BeginCapture(std::string& filename)
 {
-	const GSVector4i crect(m_wnd->GetClientRect());
-	GSVector4i disp = ComputeDrawRectangle(crect.z, crect.w);
+	GSVector4i disp = ComputeDrawRectangle(m_dev->GetBackbufferWidth(), m_dev->GetBackbufferHeight());
 	float aspect = (float)disp.width() / std::max(1, disp.height());
 
 	return m_capture.BeginCapture(GetTvRefreshRate(), GetInternalResolution(), aspect, filename);
@@ -614,27 +576,27 @@ void GSRenderer::EndCapture()
 	m_capture.EndCapture();
 }
 
-void GSRenderer::KeyEvent(GSKeyEventData* e)
+void GSRenderer::KeyEvent(const HostKeyEvent& e)
 {
 #ifndef __APPLE__ // TODO: Add hotkey support on macOS
 #ifdef _WIN32
 	m_shift_key = !!(::GetAsyncKeyState(VK_SHIFT) & 0x8000);
 	m_control_key = !!(::GetAsyncKeyState(VK_CONTROL) & 0x8000);
 #else
-	switch (e->key)
+	switch (e.key)
 	{
 		case XK_Shift_L:
 		case XK_Shift_R:
-			m_shift_key = (e->type == KEYPRESS);
+			m_shift_key = (e.type == HostKeyEvent::Type::KeyPressed);
 			return;
 		case XK_Control_L:
 		case XK_Control_R:
-			m_control_key = (e->type == KEYPRESS);
+			m_control_key = (e.type == HostKeyEvent::Type::KeyReleased);
 			return;
 	}
 #endif
 
-	if (e->type == KEYPRESS)
+	if (e.type == HostKeyEvent::Type::KeyPressed)
 	{
 
 		int step = m_shift_key ? -1 : 1;
@@ -649,7 +611,7 @@ void GSRenderer::KeyEvent(GSKeyEventData* e)
 #define VK_HOME XK_Home
 #endif
 
-		switch (e->key)
+		switch (e.key)
 		{
 			case VK_F5:
 				m_interlace = (m_interlace + s_interlace_nb + step) % s_interlace_nb;

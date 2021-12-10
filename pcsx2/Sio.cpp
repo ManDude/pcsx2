@@ -17,14 +17,9 @@
 #include "IopCommon.h"
 
 #include "Common.h"
-#include "ConsoleLogger.h"
 #include "Sio.h"
 #include "sio_internal.h"
-#ifdef _WIN32
-#include "PAD/Windows/PAD.h"
-#else
-#include "PAD/Linux/PAD.h"
-#endif
+#include "PAD/Gamepad.h"
 
 #ifndef DISABLE_RECORDING
 #	include "Recording/InputRecording.h"

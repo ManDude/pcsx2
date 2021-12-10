@@ -62,9 +62,9 @@ wxMenu* MainEmuFrame::MakeStatesSubMenu(int baseid, int loadBackupId) const
 	// For safety i also made them inactive aka grayed out to signify that's it's only for informational purposes
 	// Fixme: In the future this can still be expanded to actually cycle savestates in the GUI.
 	mnuSubstates->Append(baseid - 1, _("File..."));
-	wxMenuItem* CycleNext = mnuSubstates->Append(baseid - 2, _("Cycle to next slot") + wxString("  ") + fmt::format("({})", wxGetApp().GlobalAccels->findKeycodeWithCommandId("States_CycleSlotForward").toTitleizedString()));
+	wxMenuItem* CycleNext = mnuSubstates->Append(baseid - 2, _("Cycle to next slot") + wxString("\t") + wxGetApp().GlobalAccels->findKeycodeWithCommandId("States_CycleSlotForward").toTitleizedString());
 	CycleNext->Enable(false);
-	wxMenuItem* CycleBack = mnuSubstates->Append(baseid - 3, _("Cycle to previous slot") + wxString("  ") + fmt::format("({})", wxGetApp().GlobalAccels->findKeycodeWithCommandId("States_CycleSlotBackward").toTitleizedString()));
+	wxMenuItem* CycleBack = mnuSubstates->Append(baseid - 3, _("Cycle to previous slot") + wxString("\t") + wxGetApp().GlobalAccels->findKeycodeWithCommandId("States_CycleSlotBackward").toTitleizedString());
 	CycleBack->Enable(false);
 	return mnuSubstates;
 }
@@ -87,12 +87,18 @@ void MainEmuFrame::UpdateStatusBar()
 	}
 
 	m_statusbar.SetStatusText(temp, 0);
-	m_statusbar.SetStatusText(CDVD_SourceLabels[enum_cast(g_Conf->CdvdSource)], 1);
+
+	if (g_Conf->EnablePresets)
+		m_statusbar.SetStatusText(wxString::Format(L"P:%d", g_Conf->PresetIndex + 1), 1);
+	else
+		m_statusbar.SetStatusText("---", 1);
+
+	m_statusbar.SetStatusText(CDVD_SourceLabels[enum_cast(g_Conf->CdvdSource)], 2);
 
 #ifdef __M_X86_64
-	m_statusbar.SetStatusText("x64", 2);
+	m_statusbar.SetStatusText("x64", 3);
 #else
-	m_statusbar.SetStatusText("x32", 2);
+	m_statusbar.SetStatusText("x32", 3);
 #endif
 }
 
@@ -293,7 +299,7 @@ void MainEmuFrame::ConnectMenus()
 
 	// Misc
 	Bind(wxEVT_MENU, &MainEmuFrame::Menu_ShowConsole, this, MenuId_Console);
-#if defined(__unix__)
+#if defined(__POSIX__)
 	Bind(wxEVT_MENU, &MainEmuFrame::Menu_ShowConsole_Stdio, this, MenuId_Console_Stdio);
 #endif
 
@@ -475,7 +481,7 @@ void MainEmuFrame::CreateWindowsMenu()
 #endif
 
 	m_menuWindow.Append(&m_MenuItem_Console);
-#if defined(__unix__)
+#if defined(__POSIX__)
 	m_menuWindow.AppendSeparator();
 	m_menuWindow.Append(&m_MenuItem_Console_Stdio);
 #endif
@@ -518,7 +524,7 @@ void MainEmuFrame::CreateInputRecordingMenu()
 
 	m_menuRecording.Append(MenuId_Recording_Settings, _("Settings"), &m_submenu_recording_settings);
 	wxString frame_advance_label = wxString(_("Configure Frame Advance"));
-	frame_advance_label.Append(fmt::format(" ({})", g_Conf->inputRecording.m_frame_advance_amount));
+	frame_advance_label.Append(wxString::Format(" (%d)", g_Conf->inputRecording.m_frame_advance_amount));
 	m_submenu_recording_settings.Append(MenuId_Recording_Config_FrameAdvance, frame_advance_label, _("Change the amount of frames advanced each time"));
 	m_menuRecording.AppendSeparator();
 
@@ -574,7 +580,7 @@ MainEmuFrame::MainEmuFrame(wxWindow* parent, const wxString& title)
 	, m_GameSettingsSubmenu(*new wxMenu())
 
 	, m_MenuItem_Console(*new wxMenuItem(&m_menuWindow, MenuId_Console, _("&Show Program Log"), wxEmptyString, wxITEM_CHECK))
-#if defined(__unix__)
+#if defined(__POSIX__)
 	, m_MenuItem_Console_Stdio(*new wxMenuItem(&m_menuWindow, MenuId_Console_Stdio, _("&Program Log to Stdio"), wxEmptyString, wxITEM_CHECK))
 #endif
 
@@ -617,9 +623,9 @@ MainEmuFrame::MainEmuFrame(wxWindow* parent, const wxString& title)
 	// I cannot get it to work despite following various examples to the letter.
 	SetIcons(wxGetApp().GetIconBundle());
 
-	int m_statusbar_widths[] = {(int)-20, (int)-3, (int)-2};
-	m_statusbar.SetFieldsCount(3);
-	m_statusbar.SetStatusWidths(3, m_statusbar_widths);
+	int m_statusbar_widths[] = {(int)-20, (int)-3, (int)-3, (int)-3};
+	m_statusbar.SetFieldsCount(4);
+	m_statusbar.SetStatusWidths(4, m_statusbar_widths);
 	m_statusbar.SetStatusText(wxEmptyString, 0);
 
 	wxBoxSizer& joe(*new wxBoxSizer(wxVERTICAL));
@@ -805,13 +811,13 @@ void MainEmuFrame::ApplyConfigToGui(AppConfig& configToApply, int flags)
 #ifndef DISABLE_RECORDING
 		menubar.Check(MenuId_EnableInputRecording, configToApply.EmuOptions.EnableRecordingTools);
 		wxString frame_advance_label = wxString(_("Configure Frame Advance"));
-		frame_advance_label.Append(fmt::format(" ({})", configToApply.inputRecording.m_frame_advance_amount));
+		frame_advance_label.Append(wxString::Format(" (%d)", configToApply.inputRecording.m_frame_advance_amount));
 		m_submenu_recording_settings.SetLabel(MenuId_Recording_Config_FrameAdvance, frame_advance_label);
 		g_InputRecordingControls.setFrameAdvanceAmount(configToApply.inputRecording.m_frame_advance_amount);
 #endif
 		menubar.Check(MenuId_EnableHostFs, configToApply.EmuOptions.HostFs);
 		menubar.Check(MenuId_Debug_CreateBlockdump, configToApply.EmuOptions.CdvdDumpBlocks);
-#if defined(__unix__)
+#if defined(__POSIX__)
 		menubar.Check(MenuId_Console_Stdio, configToApply.EmuOptions.ConsoleToStdio);
 #endif
 

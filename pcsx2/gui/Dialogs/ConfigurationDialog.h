@@ -18,9 +18,9 @@
 #include <wx/wx.h>
 #include <wx/propdlg.h>
 
-#include "AppCommon.h"
-#include "ApplyState.h"
-#include "App.h"
+#include "gui/AppCommon.h"
+#include "gui/ApplyState.h"
+#include "gui/App.h"
 
 namespace Panels
 {
@@ -196,7 +196,7 @@ namespace Dialogs
 
 	public:
 		virtual ~ConvertMemoryCardDialog()  = default;
-		ConvertMemoryCardDialog( wxWindow* parent, const wxDirName& mcdPath, const AppConfig::McdOptions& mcdSourceConfig );
+		ConvertMemoryCardDialog( wxWindow* parent, const wxDirName& mcdPath, MemoryCardType type, const wxString& sourceFilename );
 	
 	protected:
 		void CreateControls( const MemoryCardType sourceType );

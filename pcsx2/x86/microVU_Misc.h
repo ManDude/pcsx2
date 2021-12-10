@@ -39,7 +39,7 @@ struct mVU_Globals
 };
 
 #define __four(val) { val, val, val, val }
-static const __aligned(32) mVU_Globals mVUglob = {
+alignas(32) static const mVU_Globals mVUglob = {
 	__four(0x7fffffff),       // absclip
 	__four(0x80000000),       // signbit
 	__four(0xff7fffff),       // minvals
@@ -105,7 +105,16 @@ static const char branchSTR[16][8] = {
 #define _Z ((mVU.code >> 22) & 0x1)
 #define _W ((mVU.code >> 21) & 0x1)
 
+#define _cX ((cpuRegs.code >> 24) & 0x1)
+#define _cY ((cpuRegs.code >> 23) & 0x1)
+#define _cZ ((cpuRegs.code >> 22) & 0x1)
+#define _cW ((cpuRegs.code >> 21) & 0x1)
+
 #define _X_Y_Z_W   (((mVU.code >> 21) & 0xF))
+#define _cX_Y_Z_W   (((cpuRegs.code >> 21) & 0xF))
+#define _cXYZW_SS  (_cX + _cY + _cZ + _cW == 1)
+#define _cXYZW_SS2  (_cXYZW_SS && (_cX_Y_Z_W != 8))
+
 #define _XYZW_SS   (_X + _Y + _Z + _W == 1)
 #define _XYZW_SS2  (_XYZW_SS && (_X_Y_Z_W != 8))
 #define _XYZW_PS   (_X_Y_Z_W == 0xf)
@@ -141,7 +150,12 @@ static const char branchSTR[16][8] = {
 #define xmmT5  xmm4 // Used for regAlloc
 #define xmmT6  xmm5 // Used for regAlloc
 #define xmmT7  xmm6 // Used for regAlloc
+#ifdef __M_X86_64
+#define xmmPQ  xmm15 // Holds the Value and Backup Values of P and Q regs
+#else
 #define xmmPQ  xmm7 // Holds the Value and Backup Values of P and Q regs
+#endif
+
 
 #define gprT1  eax // eax - Temp Reg
 #define gprT2  ecx // ecx - Temp Reg
@@ -194,7 +208,7 @@ typedef Fntype_mVUrecInst* Fnptr_mVUrecInst;
 //------------------------------------------------------------------
 // Define mVUquickSearch
 //------------------------------------------------------------------
-extern __pagealigned u8 mVUsearchXMM[__pagesize];
+alignas(__pagesize) extern u8 mVUsearchXMM[__pagesize];
 typedef u32(__fastcall* mVUCall)(void*, void*);
 #define mVUquickSearch(dest, src, size) ((((mVUCall)((void*)mVUsearchXMM))(dest, src)) == 0xf)
 #define mVUemitSearch() \
@@ -353,17 +367,6 @@ static const bool doDBitHandling = false;
 #define CHECK_VU_FLAGHACK (EmuConfig.Speedhacks.vuFlagHack)
 // This hack only updates the Status Flag on blocks that will read it.
 // Most blocks do not read status flags, so this is a big speedup.
-
-//------------------------------------------------------------------
-// Unknown Data
-//------------------------------------------------------------------
-
-// XG Kick Transfer Delay Amount
-#define mVU_XGKICK_CYCLES ((CHECK_XGKICKHACK) ? 6 : 1)
-// Its unknown at recompile time how long the xgkick transfer will take
-// so give it a value that makes games happy :) (SO3 is fine at 1 cycle delay)
-
-//------------------------------------------------------------------
 
 extern void mVUmergeRegs(const xmm& dest, const xmm& src, int xyzw, bool modXYZW = false);
 extern void mVUsaveReg(const xmm& reg, xAddressVoid ptr, int xyzw, bool modXYZW);

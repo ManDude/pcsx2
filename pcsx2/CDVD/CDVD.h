@@ -76,6 +76,20 @@ struct cdvdRTC
 	u8 year;
 };
 
+enum TrayStates
+{
+	CDVD_DISC_ENGAGED,
+	CDVD_DISC_DETECTING,
+	CDVD_DISC_SEEKING,
+	CDVD_DISC_EJECT
+};
+
+struct cdvdTrayTimer
+{
+	u32 cdvdActionSeconds;
+	TrayStates trayState;
+};
+
 struct cdvdStruct
 {
 	u8 nCommand;
@@ -111,6 +125,7 @@ struct cdvdStruct
 	int nSectors;
 	int Readed;  // change to bool. --arcum42
 	int Reading; // same here.
+	int WaitingDMA;
 	int ReadMode;
 	int BlockSize; // Total bytes transfered at 1x speed
 	int Speed;
@@ -135,6 +150,10 @@ struct cdvdStruct
 	u32 SeekToSector; // Holds the destination sector during seek operations.
 	u32 ReadTime;     // Avg. time to read one block of data (in Iop cycles)
 	bool Spinning;    // indicates if the Cdvd is spinning or needs a spinup delay
+	bool mediaChanged;
+	cdvdTrayTimer Tray;
+	u8 nextSectorsBuffered;
+	bool triggerDataReady;
 };
 
 extern cdvdStruct cdvd;
@@ -144,7 +163,9 @@ extern void cdvdReadLanguageParams(u8* config);
 extern void cdvdReset();
 extern void cdvdVsync();
 extern void cdvdActionInterrupt();
+extern void cdvdSectorReady();
 extern void cdvdReadInterrupt();
+extern void cdvdDMAInterrupt();
 
 // We really should not have a function with the exact same name as a callback except for case!
 extern void cdvdNewDiskCB();

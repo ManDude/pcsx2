@@ -34,17 +34,19 @@
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(ProjectDir)\gui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\xbyak;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\freetype\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\xz\xz\src\liblzma\api;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\baseclasses;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\zlib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\libpng;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\glad\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <ExceptionHandling>Async</ExceptionHandling>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>PrecompiledHeader.h</PrecompiledHeaderFile>
+      <ForcedIncludeFiles>PrecompiledHeader.h;%(ForcedIncludeFiles)</ForcedIncludeFiles>
       <EnableEnhancedInstructionSet>NoExtensions</EnableEnhancedInstructionSet>
+      <AdditionalOptions>/Zc:externConstexpr %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;LZMA_API_STATIC;BUILD_DX=1;SPU2X_PORTAUDIO;DIRECTINPUT_VERSION=0x0800;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="$(Configuration.Contains(Debug))">PCSX2_DEBUG;PCSX2_DEVBUILD;_SECURE_SCL_=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="$(Configuration.Contains(Devel))">PCSX2_DEVEL;PCSX2_DEVBUILD;NDEBUG;_SECURE_SCL_=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -85,6 +87,7 @@
     <None Include="PAD\Windows\Default.ini" />
     <None Include="Utilities\folderdesc.txt" />
     <None Include="Docs\License.txt" />
+    <None Include="ps2\eeHwTraceLog.inl" />
     <None Include="x86\microVU_Alloc.inl" />
     <None Include="x86\microVU_Analyze.inl" />
     <None Include="x86\microVU_Branch.inl" />
@@ -277,9 +280,13 @@
     <ClCompile Include="DEV9\ATA\ATA_State.cpp" />
     <ClCompile Include="DEV9\ATA\ATA_Transfer.cpp" />
     <ClCompile Include="DEV9\ATA\HddCreate.cpp" />
+    <ClCompile Include="DEV9\ConfigUI.cpp" />
+    <ClCompile Include="DEV9\DEV9Config.cpp" />
     <ClCompile Include="DEV9\DEV9.cpp" />
     <ClCompile Include="DEV9\flash.cpp" />
     <ClCompile Include="DEV9\InternalServers\DHCP_Server.cpp" />
+    <ClCompile Include="DEV9\InternalServers\DNS_Logger.cpp" />
+    <ClCompile Include="DEV9\InternalServers\DNS_Server.cpp" />
     <ClCompile Include="DEV9\PacketReader\EthernetFrame.cpp" />
     <ClCompile Include="DEV9\PacketReader\IP\UDP\DHCP\DHCP_Options.cpp" />
     <ClCompile Include="DEV9\PacketReader\IP\UDP\DHCP\DHCP_Packet.cpp" />
@@ -295,16 +302,18 @@
     <ClCompile Include="DEV9\Win32\DEV9WinConfig.cpp" />
     <ClCompile Include="DEV9\net.cpp" />
     <ClCompile Include="DEV9\Win32\tap-win32.cpp" />
-    <ClCompile Include="DEV9\Win32\Win32.cpp" />
     <ClCompile Include="GameDatabase.cpp" />
     <ClCompile Include="Gif_Logger.cpp" />
     <ClCompile Include="Gif_Unit.cpp" />
+    <ClCompile Include="GS\Renderers\DX11\D3D.cpp" />
+    <ClCompile Include="GS\Window\GSwxDialog.cpp" />
     <ClCompile Include="gui\AppGameDatabase.cpp" />
     <ClCompile Include="gui\AppUserMode.cpp" />
     <ClCompile Include="gui\CheckedStaticBox.cpp" />
     <ClCompile Include="gui\Debugger\BreakpointWindow.cpp" />
     <ClCompile Include="gui\Debugger\CtrlDisassemblyView.cpp" />
     <ClCompile Include="gui\Debugger\CtrlMemView.cpp" />
+    <ClCompile Include="gui\Debugger\CtrlMemSearch.cpp" />
     <ClCompile Include="gui\Debugger\CtrlRegisterList.cpp" />
     <ClCompile Include="gui\Debugger\DebugEvents.cpp" />
     <ClCompile Include="gui\Debugger\DebuggerLists.cpp" />
@@ -316,11 +325,16 @@
     <ClCompile Include="gui\Panels\MemoryCardListView.cpp" />
     <ClCompile Include="gui\pxCheckBox.cpp" />
     <ClCompile Include="gui\pxRadioPanel.cpp" />
+    <ClCompile Include="gui\pxStaticText.cpp" />
+    <ClCompile Include="gui\pxWindowTextWriter.cpp" />
     <ClCompile Include="gui\ThreadingDialogs.cpp" />
     <ClCompile Include="gui\wxAppWithHelpers.cpp" />
+    <ClCompile Include="gui\wxSettingsInterface.cpp" />
     <ClCompile Include="IopGte.cpp" />
     <ClCompile Include="IPC.cpp" />
     <ClCompile Include="FW.cpp" />
+    <ClCompile Include="MemoryCardFile.cpp" />
+    <ClCompile Include="MemoryCardFolder.cpp" />
     <ClCompile Include="PAD\Windows\PADConfig.cpp" />
     <ClCompile Include="PAD\Windows\DeviceEnumerator.cpp" />
     <ClCompile Include="PAD\Windows\Diagnostics.cpp" />
@@ -457,12 +471,8 @@
     <ClCompile Include="GS\GSDrawingContext.cpp" />
     <ClCompile Include="GS\Renderers\SW\GSDrawScanline.cpp" />
     <ClCompile Include="GS\Renderers\SW\GSDrawScanlineCodeGenerator.cpp" />
-    <ClCompile Include="GS\Renderers\SW\GSDrawScanlineCodeGenerator.x64.avx.cpp" />
-    <ClCompile Include="GS\Renderers\SW\GSDrawScanlineCodeGenerator.x64.avx2.cpp" />
-    <ClCompile Include="GS\Renderers\SW\GSDrawScanlineCodeGenerator.x64.cpp" />
-    <ClCompile Include="GS\Renderers\SW\GSDrawScanlineCodeGenerator.x86.avx.cpp" />
-    <ClCompile Include="GS\Renderers\SW\GSDrawScanlineCodeGenerator.x86.avx2.cpp" />
-    <ClCompile Include="GS\Renderers\SW\GSDrawScanlineCodeGenerator.x86.cpp" />
+    <ClCompile Include="GS\Renderers\SW\GSDrawScanlineCodeGenerator.all.cpp" />
+    <ClCompile Include="GS\Renderers\SW\GSNewCodeGenerator.cpp" />
     <ClCompile Include="GS\GSDump.cpp" />
     <ClCompile Include="GS\Renderers\Common\GSFunctionMap.cpp" />
     <ClCompile Include="GS\Renderers\HW\GSHwHack.cpp" />
@@ -471,6 +481,7 @@
     <ClCompile Include="GS\GSPerfMon.cpp" />
     <ClCompile Include="GS\Renderers\Common\GSOsdManager.cpp" />
     <ClCompile Include="GS\GSPng.cpp" />
+    <ClCompile Include="GS\GSRingHeap.cpp" />
     <ClCompile Include="GS\Renderers\SW\GSRasterizer.cpp" />
     <ClCompile Include="GS\Renderers\Common\GSRenderer.cpp" />
     <ClCompile Include="GS\Renderers\DX11\GSRendererDX11.cpp" />
@@ -479,14 +490,8 @@
     <ClCompile Include="GS\Renderers\OpenGL\GSRendererOGL.cpp" />
     <ClCompile Include="GS\Renderers\SW\GSRendererSW.cpp" />
     <ClCompile Include="GS\Window\GSSetting.cpp" />
-    <ClCompile Include="GS\Window\GSSettingsDlg.cpp" />
     <ClCompile Include="GS\Renderers\SW\GSSetupPrimCodeGenerator.cpp" />
-    <ClCompile Include="GS\Renderers\SW\GSSetupPrimCodeGenerator.x64.avx.cpp" />
-    <ClCompile Include="GS\Renderers\SW\GSSetupPrimCodeGenerator.x64.avx2.cpp" />
-    <ClCompile Include="GS\Renderers\SW\GSSetupPrimCodeGenerator.x64.cpp" />
-    <ClCompile Include="GS\Renderers\SW\GSSetupPrimCodeGenerator.x86.avx.cpp" />
-    <ClCompile Include="GS\Renderers\SW\GSSetupPrimCodeGenerator.x86.avx2.cpp" />
-    <ClCompile Include="GS\Renderers\SW\GSSetupPrimCodeGenerator.x86.cpp" />
+    <ClCompile Include="GS\Renderers\SW\GSSetupPrimCodeGenerator.all.cpp" />
     <ClCompile Include="GS\Renderers\OpenGL\GSShaderOGL.cpp" />
     <ClCompile Include="GS\GSState.cpp" />
     <ClCompile Include="GS\GSTables.cpp" />
@@ -494,8 +499,6 @@
     <ClCompile Include="GS\Renderers\DX11\GSTexture11.cpp" />
     <ClCompile Include="GS\Renderers\OpenGL\GSTextureOGL.cpp" />
     <ClCompile Include="GS\Renderers\HW\GSTextureCache.cpp" />
-    <ClCompile Include="GS\Renderers\DX11\GSTextureCache11.cpp" />
-    <ClCompile Include="GS\Renderers\OpenGL\GSTextureCacheOGL.cpp" />
     <ClCompile Include="GS\Renderers\SW\GSTextureCacheSW.cpp" />
     <ClCompile Include="GS\Renderers\DX11\GSTextureFX11.cpp" />
     <ClCompile Include="GS\Renderers\Null\GSTextureNull.cpp" />
@@ -505,12 +508,6 @@
     <ClCompile Include="GS\Renderers\Common\GSVertexList.cpp" />
     <ClCompile Include="GS\Renderers\SW\GSVertexSW.cpp" />
     <ClCompile Include="GS\Renderers\Common\GSVertexTrace.cpp" />
-    <ClCompile Include="GS\Window\GSWnd.cpp" />
-    <ClCompile Include="GS\Window\GSWndDX.cpp" />
-    <ClCompile Include="GS\Window\GSWndEGL.cpp">
-      <ExcludedFromBuild>true</ExcludedFromBuild>
-    </ClCompile>
-    <ClCompile Include="GS\Window\GSWndWGL.cpp" />
     <ClCompile Include="Utilities\FileUtils.cpp" />
     <ClCompile Include="Dump.cpp" />
     <ClCompile Include="x86\iMisc.cpp" />
@@ -658,12 +655,12 @@
     <ClCompile Include="gui\IsoDropTarget.cpp" />
     <ClCompile Include="gui\MainFrame.cpp" />
     <ClCompile Include="gui\MainMenuClicks.cpp" />
-    <ClCompile Include="gui\MemoryCardFile.cpp" />
-    <ClCompile Include="gui\MemoryCardFolder.cpp" />
     <ClCompile Include="gui\MessageBoxes.cpp" />
     <ClCompile Include="gui\MSWstuff.cpp" />
     <ClCompile Include="gui\RecentIsoList.cpp" />
     <ClCompile Include="gui\UpdateUI.cpp" />
+    <ClCompile Include="gui\wxGuiTools.cpp" />
+    <ClCompile Include="gui\wxHelpers.cpp" />
     <ClCompile Include="gui\Dialogs\AboutBoxDialog.cpp" />
     <ClCompile Include="gui\Dialogs\AssertionDialog.cpp" />
     <ClCompile Include="gui\Dialogs\BaseConfigurationDialog.cpp" />
@@ -695,8 +692,6 @@
     </ClCompile>
     <ClCompile Include="gui\Saveslots.cpp" />
     <ClCompile Include="gui\SysState.cpp" />
-    <ClCompile Include="ZipTools\thread_gzip.cpp" />
-    <ClCompile Include="ZipTools\thread_lzma.cpp" />
     <ClCompile Include="windows\Optimus.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -725,6 +720,8 @@
     <ClInclude Include="DEV9\Config.h" />
     <ClInclude Include="DEV9\DEV9.h" />
     <ClInclude Include="DEV9\InternalServers\DHCP_Server.h" />
+    <ClInclude Include="DEV9\InternalServers\DNS_Logger.h" />
+    <ClInclude Include="DEV9\InternalServers\DNS_Server.h" />
     <ClInclude Include="DEV9\net.h" />
     <ClInclude Include="DEV9\PacketReader\EthernetFrame.h" />
     <ClInclude Include="DEV9\PacketReader\IP\UDP\DHCP\DHCP_Options.h" />
@@ -743,10 +740,11 @@
     <ClInclude Include="DEV9\SimpleQueue.h" />
     <ClInclude Include="DEV9\smap.h" />
     <ClInclude Include="DEV9\Win32\pcap_io_win32_funcs.h" />
-    <ClInclude Include="DEV9\Win32\resource.h" />
     <ClInclude Include="DEV9\Win32\tap.h" />
     <ClInclude Include="GameDatabase.h" />
     <ClInclude Include="Gif_Unit.h" />
+    <ClInclude Include="GS\Renderers\DX11\D3D.h" />
+    <ClInclude Include="GS\Window\GSwxDialog.h" />
     <ClInclude Include="gui\AppGameDatabase.h" />
     <ClInclude Include="gui\CheckedStaticBox.h" />
     <ClInclude Include="gui\i18n.h" />
@@ -754,10 +752,12 @@
     <ClInclude Include="gui\pxCheckBox.h" />
     <ClInclude Include="gui\pxEvents.h" />
     <ClInclude Include="gui\pxRadioPanel.h" />
+    <ClInclude Include="gui\pxStaticText.h" />
     <ClInclude Include="gui\Saveslots.h" />
     <ClInclude Include="gui\Debugger\BreakpointWindow.h" />
     <ClInclude Include="gui\Debugger\CtrlDisassemblyView.h" />
     <ClInclude Include="gui\Debugger\CtrlMemView.h" />
+    <ClInclude Include="gui\Debugger\CtrlMemSearch.h" />
     <ClInclude Include="gui\Debugger\CtrlRegisterList.h" />
     <ClInclude Include="gui\Debugger\DebugEvents.h" />
     <ClInclude Include="gui\Debugger\DebuggerLists.h" />
@@ -765,10 +765,14 @@
     <ClInclude Include="gui\Panels\MemoryCardPanels.h" />
     <ClInclude Include="gui\ThreadingDialogs.h" />
     <ClInclude Include="gui\wxAppWithHelpers.h" />
+    <ClInclude Include="gui\wxSettingsInterface.h" />
+    <ClInclude Include="Host.h" />
     <ClInclude Include="IopGte.h" />
     <ClInclude Include="IPC.h" />
     <ClInclude Include="FW.h" />
-    <ClInclude Include="PAD\Windows\PAD.h" />
+    <ClInclude Include="MemoryCardFile.h" />
+    <ClInclude Include="MemoryCardFolder.h" />
+    <ClInclude Include="PAD\Gamepad.h" />
     <ClInclude Include="PAD\Windows\PADConfig.h" />
     <ClInclude Include="PAD\Windows\DeviceEnumerator.h" />
     <ClInclude Include="PAD\Windows\Diagnostics.h" />
@@ -808,8 +812,10 @@
     <ClInclude Include="GS\Renderers\OpenGL\GLLoader.h" />
     <ClInclude Include="GS\Renderers\OpenGL\GLState.h" />
     <ClInclude Include="GS\GS.h" />
-    <ClInclude Include="GS\GS_codegen.h" />
-    <ClInclude Include="GS\GS_types.h" />
+    <ClInclude Include="GS\GSExtra.h" />
+    <ClInclude Include="GS\GSGL.h" />
+    <ClInclude Include="GS\GSIntrin.h" />
+    <ClInclude Include="GS\GSRegs.h" />
     <ClInclude Include="GS\GSAlignedClass.h" />
     <ClInclude Include="GS\GSBlock.h" />
     <ClInclude Include="GS\GSCapture.h" />
@@ -827,6 +833,8 @@
     <ClInclude Include="GS\GSDrawingEnvironment.h" />
     <ClInclude Include="GS\Renderers\SW\GSDrawScanline.h" />
     <ClInclude Include="GS\Renderers\SW\GSDrawScanlineCodeGenerator.h" />
+    <ClInclude Include="GS\Renderers\SW\GSDrawScanlineCodeGenerator.all.h" />
+    <ClInclude Include="GS\Renderers\SW\GSNewCodeGenerator.h" />
     <ClInclude Include="GS\GSDump.h" />
     <ClInclude Include="GS\Renderers\Common\GSFastList.h" />
     <ClInclude Include="GS\Renderers\Common\GSFunctionMap.h" />
@@ -835,6 +843,7 @@
     <ClInclude Include="GS\GSPerfMon.h" />
     <ClInclude Include="GS\Renderers\Common\GSOsdManager.h" />
     <ClInclude Include="GS\GSPng.h" />
+    <ClInclude Include="GS\GSRingHeap.h" />
     <ClInclude Include="GS\Renderers\SW\GSRasterizer.h" />
     <ClInclude Include="GS\Renderers\Common\GSRenderer.h" />
     <ClInclude Include="GS\Renderers\DX11\GSRendererDX11.h" />
@@ -844,8 +853,8 @@
     <ClInclude Include="GS\Renderers\SW\GSRendererSW.h" />
     <ClInclude Include="GS\Renderers\SW\GSScanlineEnvironment.h" />
     <ClInclude Include="GS\Window\GSSetting.h" />
-    <ClInclude Include="GS\Window\GSSettingsDlg.h" />
     <ClInclude Include="GS\Renderers\SW\GSSetupPrimCodeGenerator.h" />
+    <ClInclude Include="GS\Renderers\SW\GSSetupPrimCodeGenerator.all.h" />
     <ClInclude Include="GS\Renderers\OpenGL\GSShaderOGL.h" />
     <ClInclude Include="GS\GSState.h" />
     <ClInclude Include="GS\GSTables.h" />
@@ -853,8 +862,6 @@
     <ClInclude Include="GS\Renderers\DX11\GSTexture11.h" />
     <ClInclude Include="GS\Renderers\OpenGL\GSTextureOGL.h" />
     <ClInclude Include="GS\Renderers\HW\GSTextureCache.h" />
-    <ClInclude Include="GS\Renderers\DX11\GSTextureCache11.h" />
-    <ClInclude Include="GS\Renderers\OpenGL\GSTextureCacheOGL.h" />
     <ClInclude Include="GS\Renderers\SW\GSTextureCacheSW.h" />
     <ClInclude Include="GS\Renderers\Null\GSTextureNull.h" />
     <ClInclude Include="GS\Renderers\SW\GSTextureSW.h" />
@@ -868,19 +875,15 @@
     <ClInclude Include="GS\GSVector8i.h" />
     <ClInclude Include="GS\GSVector8.h" />
     <ClInclude Include="GS\Renderers\Common\GSVertex.h" />
-    <ClInclude Include="GS\Renderers\OpenGL\GSVertexArrayOGL.h" />
     <ClInclude Include="GS\Renderers\HW\GSVertexHW.h" />
     <ClInclude Include="GS\Renderers\Common\GSVertexList.h" />
     <ClInclude Include="GS\Renderers\SW\GSVertexSW.h" />
     <ClInclude Include="GS\Renderers\Common\GSVertexTrace.h" />
-    <ClInclude Include="GS\Window\GSWnd.h" />
-    <ClInclude Include="GS\Window\GSWndDX.h" />
-    <ClInclude Include="GS\Window\GSWndEGL.h" />
-    <ClInclude Include="GS\Window\GSWndWGL.h" />
     <ClInclude Include="GS\resource.h" />
     <ClInclude Include="IPU\IPUdma.h" />
     <ClInclude Include="Mdec.h" />
     <ClInclude Include="Patch.h" />
+    <ClInclude Include="PCSX2Base.h" />
     <ClInclude Include="PrecompiledHeader.h" />
     <ClInclude Include="sio_internal.h" />
     <ClInclude Include="ps2\pgif.h" />
@@ -953,6 +956,7 @@
     <ClInclude Include="Dump.h" />
     <ClInclude Include="IopCommon.h" />
     <ClInclude Include="SaveState.h" />
+    <ClInclude Include="SingleRegisterTypes.h" />
     <ClInclude Include="System.h" />
     <ClInclude Include="System\SysThreads.h" />
     <ClInclude Include="System\RecTypes.h" />
@@ -1077,14 +1081,11 @@
     <ClInclude Include="gui\GSFrame.h" />
     <ClInclude Include="gui\IsoDropTarget.h" />
     <ClInclude Include="gui\MainFrame.h" />
-    <ClInclude Include="gui\MemoryCardFile.h" />
-    <ClInclude Include="gui\MemoryCardFolder.h" />
     <ClInclude Include="gui\pxEventThread.h" />
     <ClInclude Include="gui\RecentIsoList.h" />
+    <ClInclude Include="gui\wxGuiTools.h" />
     <ClInclude Include="PathDefs.h" />
     <ClInclude Include="SysForwardDefs.h" />
-    <ClInclude Include="ZipTools\ThreadedZipTools.h" />
-    <ClInclude Include="cheatscpp.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="$(SolutionDir)3rdparty\wxwidgets3.0\include\wx\msw\wx.rc">
@@ -1094,7 +1095,6 @@
     <ResourceCompile Include="GS\GS.rc" />
     <ResourceCompile Include="PAD\Windows\PAD.rc" />
     <ResourceCompile Include="SPU2\Windows\SPU2.rc" />
-    <ResourceCompile Include="DEV9\Win32\DEV9ghzdrk.rc" />
     <ResourceCompile Include="USB\usb-pad\dx\versionproxy.rc" />
     <ResourceCompile Include="USB\usb-pad\raw\raw-config.rc" />
     <ResourceCompile Include="USB\Win32\USBDialog.rc" />
@@ -1160,6 +1160,9 @@
     </ProjectReference>
     <ProjectReference Include="..\common\common.vcxproj">
       <Project>{4639972e-424e-4e13-8b07-ca403c481346}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\3rdparty\glad\glad.vcxproj">
+      <Project>{c0293b32-5acf-40f0-aa6c-e6da6f3bf33a}</Project>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

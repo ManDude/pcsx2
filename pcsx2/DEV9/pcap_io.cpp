@@ -45,6 +45,7 @@ char errbuf[PCAP_ERRBUF_SIZE];
 
 int pcap_io_running = 0;
 bool pcap_io_switched;
+bool pcap_io_blocking;
 
 extern u8 eeprom[];
 
@@ -70,7 +71,7 @@ bool PCAPGetWin32Adapter(const char* name, PIP_ADAPTER_ADDRESSES adapter, std::u
 
 	DWORD dwStatus = GetAdaptersAddresses(
 		AF_UNSPEC,
-		GAA_FLAG_INCLUDE_PREFIX,
+		GAA_FLAG_INCLUDE_PREFIX | GAA_FLAG_INCLUDE_GATEWAYS,
 		NULL,
 		AdapterInfo.get(),
 		&dwBufLen);
@@ -83,9 +84,9 @@ bool PCAPGetWin32Adapter(const char* name, PIP_ADAPTER_ADDRESSES adapter, std::u
 		dwBufLen = sizeof(IP_ADAPTER_ADDRESSES) * neededSize;
 		DevCon.WriteLn("DEV9: New size %i", neededSize);
 
-		DWORD dwStatus = GetAdaptersAddresses(
+		dwStatus = GetAdaptersAddresses(
 			AF_UNSPEC,
-			GAA_FLAG_INCLUDE_PREFIX,
+			GAA_FLAG_INCLUDE_PREFIX | GAA_FLAG_INCLUDE_GATEWAYS,
 			NULL,
 			AdapterInfo.get(),
 			&dwBufLen);
@@ -219,6 +220,14 @@ int pcap_io_init(char* adapter, bool switched, mac_address virtual_mac)
 		}
 	}
 
+	if (pcap_setnonblock(adhandle, 1, errbuf) == -1)
+	{
+		Console.Error("DEV9: Error setting non-blocking: %s", pcap_geterr(adhandle));
+		Console.Error("DEV9: Continuing in blocking mode");
+		pcap_io_blocking = true;
+	}
+	else
+		pcap_io_blocking = false;
 
 	dlt = pcap_datalink(adhandle);
 	dlt_name = (char*)pcap_datalink_val_to_name(dlt);
@@ -370,13 +379,22 @@ PCAPAdapter::PCAPAdapter()
 	host_mac = hostMAC;
 	ps2_mac = newMAC; //Needed outside of this class
 
+	if (pcap_io_init(config.Eth, config.EthApi == NetApi::PCAP_Switched, newMAC) == -1)
+	{
+		Console.Error("DEV9: Can't open Device '%s'", config.Eth);
+		return;
+	}
+
 #ifdef _WIN32
 	IP_ADAPTER_ADDRESSES adapter;
 	std::unique_ptr<IP_ADAPTER_ADDRESSES[]> buffer;
 	if (PCAPGetWin32Adapter(config.Eth, &adapter, &buffer))
 		InitInternalServer(&adapter);
 	else
+	{
+		Console.Error("DEV9: Failed to get adapter information");
 		InitInternalServer(nullptr);
+	}
 #elif defined(__POSIX__)
 	ifaddrs adapter;
 	ifaddrs* buffer;
@@ -386,17 +404,16 @@ PCAPAdapter::PCAPAdapter()
 		freeifaddrs(buffer);
 	}
 	else
-		InitInternalServer(nullptr);
-#endif
-
-	if (pcap_io_init(config.Eth, config.EthApi == NetApi::PCAP_Switched, newMAC) == -1)
 	{
-		Console.Error("Can't open Device '%s'\n", config.Eth);
+		Console.Error("DEV9: Failed to get adapter information");
+		InitInternalServer(nullptr);
 	}
+#endif
 }
 bool PCAPAdapter::blocks()
 {
-	return true;
+	pxAssert(pcap_io_running);
+	return pcap_io_blocking;
 }
 bool PCAPAdapter::isInitialised()
 {
@@ -405,19 +422,22 @@ bool PCAPAdapter::isInitialised()
 //gets a packet.rv :true success
 bool PCAPAdapter::recv(NetPacket* pkt)
 {
+	if (!pcap_io_blocking && NetAdapter::recv(pkt))
+		return true;
+
 	int size = pcap_io_recv(pkt->buffer, sizeof(pkt->buffer));
-	if (size <= 0)
+	if (size > 0 && VerifyPkt(pkt, size))
 	{
-		return false;
+		InspectRecv(pkt);
+		return true;
 	}
 	else
-	{
-		return VerifyPkt(pkt, size);
-	}
+		return false;
 }
 //sends the packet .rv :true success
 bool PCAPAdapter::send(NetPacket* pkt)
 {
+	InspectSend(pkt);
 	if (NetAdapter::send(pkt))
 		return true;
 

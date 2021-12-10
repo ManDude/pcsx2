@@ -373,7 +373,12 @@ __forceinline bool StartQueuedVoice(uint coreidx, uint voiceidx)
 	vc.ADSR.Phase = 1;
 	vc.SCurrent = 28;
 	vc.LoopMode = 0;
-	vc.SP = 0;
+
+	// When SP >= 0 the next sample will be grabbed, we don't want this to happen
+	// instantly because in the case of pitch being 0 we want to delay getting
+	// the next block header.
+	vc.SP = -1;
+
 	vc.LoopFlags = 0;
 	vc.NextA = vc.StartA | 1;
 	vc.Prev1 = 0;
@@ -1978,6 +1983,12 @@ void StartVoices(int core, u32 value)
 	{
 		if (!((value >> vc) & 1))
 			continue;
+
+		if ((Cycles - Cores[core].Voices[vc].PlayCycle) < 2)
+		{
+			ConLog("Attempt to start voice %d on core %d in less than 2T since last KeyOn\n", vc, core);
+			continue;
+		}
 
 		Cores[core].Voices[vc].Start();
 

@@ -16,6 +16,7 @@
 #pragma once
 
 #include "common/TraceLog.h"
+#include "Config.h"
 #include "Memory.h"
 
 extern FILE *emuLog;
@@ -240,6 +241,11 @@ public:
 		fflush(NULL);
 
 		return false;
+	}
+
+	bool Write(const std::string& msg) const
+	{
+		return Write(fromUTF8(msg));
 	}
 };
 

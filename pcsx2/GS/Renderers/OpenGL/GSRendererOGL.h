@@ -15,8 +15,8 @@
 
 #pragma once
 
+#include "GSDeviceOGL.h"
 #include "GS/Renderers/HW/GSRendererHW.h"
-#include "GSTextureCacheOGL.h"
 #include "GS/Renderers/HW/GSVertexHW.h"
 
 class GSRendererOGL final : public GSRendererHW
@@ -70,8 +70,6 @@ private:
 public:
 	GSRendererOGL();
 	virtual ~GSRendererOGL() {}
-
-	bool CreateDevice(GSDevice* dev);
 
 	void DrawPrims(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* tex) final;
 

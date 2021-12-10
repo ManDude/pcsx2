@@ -67,8 +67,8 @@
 // unchanged for long periods of time, or happen to be used by almost everything, so they
 // need a full recompile anyway, when modified (etc)
 
-#include "common/Pcsx2Defs.h"
-#include "i18n.h"
+#include "PCSX2Base.h"
+#include "gui/i18n.h"
 
 #include "common/wxBaseTools.h"
 #include "common/Path.h"

@@ -21,7 +21,7 @@
 #include "GS/GS.h"
 
 extern double GetVerticalFrequency();
-extern __aligned16 u8 g_RealGSMem[Ps2MemSize::GSregs];
+alignas(16) extern u8 g_RealGSMem[Ps2MemSize::GSregs];
 
 enum CSR_FifoState
 {
@@ -381,19 +381,19 @@ protected:
 	void OpenGS();
 	void CloseGS();
 
-	void OnStart();
-	void OnResumeReady();
+	void OnStart() override;
+	void OnResumeReady() override;
 
-	void OnSuspendInThread();
-	void OnPauseInThread() {}
-	void OnResumeInThread( bool IsSuspended );
-	void OnCleanupInThread();
+	void OnSuspendInThread() override;
+	void OnPauseInThread(SystemsMask systemsToTearDown) override {}
+	void OnResumeInThread(SystemsMask systemsToReinstate) override;
+	void OnCleanupInThread() override;
 
 	void GenericStall( uint size );
 
 	// Used internally by SendSimplePacket type functions
 	void _FinishSimplePacket();
-	void ExecuteTaskInThread();
+	void ExecuteTaskInThread() override;
 };
 
 // GetMTGS() is a required external implementation. This function is *NOT* provided
@@ -483,7 +483,7 @@ struct MTGS_BufferedData
 	}
 };
 
-extern __aligned(32) MTGS_BufferedData RingBuffer;
+alignas(32) extern MTGS_BufferedData RingBuffer;
 
 // FIXME: These belong in common with other memcpy tools.  Will move them there later if no one
 // else beats me to it.  --air

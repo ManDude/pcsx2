@@ -15,9 +15,6 @@
 
 #include "PrecompiledHeader.h"
 #include "GSSetting.h"
-#ifdef _WIN32
-#include "GS/resource.h"
-#endif
 
 #ifdef _WIN32
 #define cvtString(s) L##s
@@ -100,13 +97,13 @@ const char* dialog_message(int ID, bool* updateText)
 				"Note: Direct3D 11 is less accurate.");
 		case IDC_ACCURATE_BLEND_UNIT:
 			return cvtString("Control the accuracy level of the GS blending unit emulation.\n\n"
-				"None:\nFast but introduces various rendering issues.\n"
+				"Minimum:\nFast but introduces various rendering issues.\n"
 				"It is intended for slow computer.\n\n"
 				"Basic:\nEmulate correctly most of the effects with a limited speed penalty.\n"
 				"This is the recommended setting.\n\n"
 				"Medium:\nExtend it to all sprites. Performance impact remains reasonable in 3D game.\n\n"
 				"High:\nExtend it to destination alpha blending and color wrapping (helps shadow and fog effects).\n"
-				"A good GPU is required.\n\n"
+				"A good CPU is required.\n\n"
 				"Full:\nExcept few cases, the blending unit will be fully emulated by the shader. It is ultra slow!\n"
 				"It is intended for debug.\n\n"
 				"Ultra:\nThe blending unit will be completely emulated by the shader. It is ultra slow!\n"
@@ -196,11 +193,18 @@ const char* dialog_message(int ID, bool* updateText)
 				   "Disabling this can amplify stuttering due to low RAM/VRAM.\n\n"
 				   "Note: It should be enabled for Armored Core, Destroy All Humans, Gran Turismo and possibly others.\n"
 				   "This option does not improve the graphics or the FPS.");
+		case IDC_DITHERING:
+			return cvtString("In the PS2's case, it reduces banding between colors and improves the perceived color depth.\n"
+				   "In the PS1's case, it was used more aggressively due to 16-bit colour.\n"
+				   "Sit far enough and don't examine it too closely for the best effect.\n\n"
+				   "Off:\nDisables any dithering.\n\n"
+				   "Unscaled:\nNative Dithering / Lowest dithering effect does not increase size of squares when upscaling.\n\n"
+				   "Scaled:\nUpscaling-aware / Highest dithering effect.");
 			// Windows only options.
 #ifdef _WIN32
 		case IDC_ACCURATE_BLEND_UNIT_D3D11:
 			return L"Control the accuracy level of the GS blending unit emulation.\n\n"
-				"None:\nFast but introduces various rendering issues.\n"
+				"Minimum:\nFast but introduces various rendering issues.\n"
 				"It is intended for slow computer.\n\n"
 				"Basic:\nEmulate correctly some of the effects with a limited speed penalty.\n"
 				"This is the recommended setting.\n\n"

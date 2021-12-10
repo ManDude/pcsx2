@@ -14,14 +14,12 @@
  */
 
 #include "PrecompiledHeader.h"
-#define WINVER 0x0600
-#define _WIN32_WINNT 0x0600
 
 #ifdef _WIN32
 //#include <winsock2.h>
 #include <Winioctl.h>
 #include <windows.h>
-#elif defined(__linux__) || defined(__APPLE__)
+#else
 #include <sys/types.h>
 #include <sys/mman.h>
 #include <err.h>
@@ -38,7 +36,6 @@
 #include "DEV9.h"
 #undef EXTERN
 #include "Config.h"
-#include "AppConfig.h"
 #include "smap.h"
 
 
@@ -186,7 +183,7 @@ void DEV9shutdown()
 	delete dev9.ata;
 }
 
-s32 DEV9open(void* pDsp)
+s32 DEV9open()
 {
 	DevCon.WriteLn("DEV9: DEV9open");
 	LoadConf();
@@ -206,7 +203,7 @@ s32 DEV9open(void* pDsp)
 
 	if (hddPath.is_relative())
 	{
-		ghc::filesystem::path path(GetSettingsFolder().ToString().wx_str());
+		ghc::filesystem::path path(EmuFolders::Settings.ToString().wx_str());
 		hddPath = path / hddPath;
 	}
 
@@ -1077,7 +1074,7 @@ void DEV9setLogDir(const char* dir)
 	s_strLogPath = (dir == NULL) ? "logs" : dir;
 }
 
-void ApplyConfigIfRunning(Config oldConfig)
+void ApplyConfigIfRunning(ConfigDEV9 oldConfig)
 {
 	if (!isRunning)
 		return;
@@ -1095,7 +1092,7 @@ void ApplyConfigIfRunning(Config oldConfig)
 	if (hddPath.is_relative())
 	{
 		//GHC uses UTF8 on all platforms
-		ghc::filesystem::path path(GetSettingsFolder().ToString().wx_str());
+		ghc::filesystem::path path(EmuFolders::Settings.ToString().wx_str());
 		hddPath = path / hddPath;
 	}
 

@@ -23,14 +23,10 @@
 #include "Gif_Unit.h"
 #include "MTVU.h"
 #include "Elfheader.h"
-#include "App.h"
 #include "gui/Dialogs/ModalPopups.h"
-#ifdef _WIN32
-#include "PAD/Windows/PAD.h"
-#else
-#include "PAD/Linux/PAD.h"
-#endif
 
+#include "common/WindowInfo.h"
+extern WindowInfo g_gs_window_info;
 
 // Uncomment this to enable profiling of the GS RingBufferCopy function.
 //#define PCSX2_GSRING_SAMPLING_STATS
@@ -50,7 +46,7 @@ using namespace Threading;
 //  MTGS Threaded Class Implementation
 // =====================================================================================================
 
-__aligned(32) MTGS_BufferedData RingBuffer;
+alignas(32) MTGS_BufferedData RingBuffer;
 extern bool renderswitch;
 std::atomic_bool init_gspanel = true;
 
@@ -232,12 +228,6 @@ union PacketTagType
 	};
 };
 
-static void dummyIrqCallback()
-{
-	// dummy, because MTGS doesn't need this mess!
-	// (and zerogs does >_<)
-}
-
 void SysMtgsThread::OpenGS()
 {
 	if (m_Opened)
@@ -248,9 +238,8 @@ void SysMtgsThread::OpenGS()
 
 	memcpy(RingBuffer.Regs, PS2MEM_GS, sizeof(PS2MEM_GS));
 	GSsetBaseMem(RingBuffer.Regs);
-	GSirqCallback(dummyIrqCallback);
 
-	pxAssertMsg((GSopen2((void**)pDsp, 1 | (renderswitch ? 4 : 0)) == 0), "GS failed to open!");
+	pxAssertMsg((GSopen2(g_gs_window_info, 1 | (renderswitch ? 4 : 0)) == 0), "GS failed to open!");
 
 	GSsetVsync(EmuConfig.GS.GetVsync());
 
@@ -442,10 +431,13 @@ void SysMtgsThread::ExecuteTaskInThread()
 				{
 					MTVU_LOG("MTGS - Waiting on semaXGkick!");
 					vu1Thread.KickStart(true);
-					busy.PartialRelease();
-					// Wait for MTVU to complete vu1 program
-					vu1Thread.semaXGkick.WaitWithoutYield();
-					busy.PartialAcquire();
+					if (!vu1Thread.semaXGkick.TryWait())
+					{
+						busy.PartialRelease();
+						// Wait for MTVU to complete vu1 program
+						vu1Thread.semaXGkick.WaitWithoutYield();
+						busy.PartialAcquire();
+					}
 					Gif_Path& path = gifUnit.gifPath[GIF_PATH_1];
 					GS_Packet gsPack = path.GetGSPacketMTVU(); // Get vu1 program's xgkick packet(s)
 					if (gsPack.size)
@@ -604,12 +596,12 @@ void SysMtgsThread::OnSuspendInThread()
 	_parent::OnSuspendInThread();
 }
 
-void SysMtgsThread::OnResumeInThread(bool isSuspended)
+void SysMtgsThread::OnResumeInThread(SystemsMask systemsToReinstate)
 {
-	if (isSuspended)
+	if (systemsToReinstate & System_GS)
 		OpenGS();
 
-	_parent::OnResumeInThread(isSuspended);
+	_parent::OnResumeInThread(systemsToReinstate);
 }
 
 void SysMtgsThread::OnCleanupInThread()

@@ -36,7 +36,7 @@
 #include "Patch.h"
 
 #if !PCSX2_SEH
-	#include <csetjmp>
+	#include "common/FastJmp.h"
 #endif
 
 
@@ -50,8 +50,8 @@ using namespace R5900;
 #define PC_GETBLOCK(x) PC_GETBLOCK_(x, recLUT)
 
 u32 maxrecmem = 0;
-static __aligned16 uptr recLUT[_64kb];
-static __aligned16 u32 hwLUT[_64kb];
+alignas(16) static uptr recLUT[_64kb];
+alignas(16) static u32 hwLUT[_64kb];
 
 static __fi u32 HWADDR(u32 mem) { return hwLUT[mem >> 16] + mem; }
 
@@ -60,7 +60,7 @@ u32 s_nBlockCycles = 0; // cycles of current block recompiling
 u32 pc;       // recompiler pc
 int g_branch; // set for branch
 
-__aligned16 GPR_reg64 g_cpuConstRegs[32] = {0};
+alignas(16) GPR_reg64 g_cpuConstRegs[32] = {0};
 u32 g_cpuHasConstReg = 0, g_cpuFlushedConstReg = 0;
 bool g_cpuFlushedPC, g_cpuFlushedCode, g_recompilingDelaySlot, g_maySignalException;
 
@@ -218,12 +218,29 @@ void _eeMoveGPRtoRm(x86IntRegType to, int fromgpr)
 	}
 }
 
+void _signExtendToMem(void* mem)
+{
+#ifdef __M_X86_64
+	xCDQE();
+	xMOV(ptr64[mem], rax);
+#else
+	xCDQ();
+	xMOV(ptr32[mem], eax);
+	xMOV(ptr32[(void*)((sptr)mem + 4)], edx);
+#endif
+}
+
 void eeSignExtendTo(int gpr, bool onlyupper)
 {
-	xCDQ();
-	if (!onlyupper)
-		xMOV(ptr32[&cpuRegs.GPR.r[gpr].UL[0]], eax);
-	xMOV(ptr32[&cpuRegs.GPR.r[gpr].UL[1]], edx);
+	if (onlyupper)
+	{
+		xCDQ();
+		xMOV(ptr32[&cpuRegs.GPR.r[gpr].UL[1]], edx);
+	}
+	else
+	{
+		_signExtendToMem(&cpuRegs.GPR.r[gpr].UD[0]);
+	}
 }
 
 int _flushXMMunused()
@@ -339,7 +356,7 @@ static void __fastcall dyna_block_discard(u32 start, u32 sz);
 static void __fastcall dyna_page_reset(u32 start, u32 sz);
 
 // Recompiled code buffer for EE recompiler dispatchers!
-static u8 __pagealigned eeRecDispatchers[__pagesize];
+alignas(__pagesize) static u8 eeRecDispatchers[__pagesize];
 
 typedef void DynGenFunc();
 
@@ -604,8 +621,8 @@ static void recAlloc()
 	_DynGen_Dispatchers();
 }
 
-static __aligned16 u16 manual_page[Ps2MemSize::MainRam >> 12];
-static __aligned16 u8 manual_counter[Ps2MemSize::MainRam >> 12];
+alignas(16) static u16 manual_page[Ps2MemSize::MainRam >> 12];
+alignas(16) static u8 manual_counter[Ps2MemSize::MainRam >> 12];
 
 static std::atomic<bool> eeRecIsReset(false);
 static std::atomic<bool> eeRecNeedsReset(false);
@@ -686,7 +703,7 @@ void recStep()
 
 #if !PCSX2_SEH
 	#define SETJMP_CODE(x) x
-	static jmp_buf m_SetJmp_StateCheck;
+	static fastjmp_buf m_SetJmp_StateCheck;
 	static std::unique_ptr<BaseR5900Exception> m_cpuException;
 	static ScopedExcept m_Exception;
 #else
@@ -704,7 +721,7 @@ static void recExitExecution()
 	// creates.  However, the longjump is slow so we only want to do one when absolutely
 	// necessary:
 
-	longjmp(m_SetJmp_StateCheck, 1);
+	fastjmp_jmp(&m_SetJmp_StateCheck, 1);
 #endif
 }
 
@@ -742,10 +759,10 @@ static void recExecute()
 	// setjmp will save the register context and will return 0
 	// A call to longjmp will restore the context (included the eip/rip)
 	// but will return the longjmp 2nd parameter (here 1)
-	if (!setjmp(m_SetJmp_StateCheck))
+	if (!fastjmp_set(&m_SetJmp_StateCheck))
 	{
 		eeRecIsReset = false;
-		ScopedBool executing(eeCpuExecuting);
+		eeCpuExecuting = true;
 
 		// Important! Most of the console logging and such has cancel points in it.  This is great
 		// in Windows, where SEH lets us safely kill a thread from anywhere we want.  This is bad
@@ -761,6 +778,8 @@ static void recExecute()
 	{
 		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &oldstate);
 	}
+
+	eeCpuExecuting = false;
 
 	if (m_cpuException)
 		m_cpuException->Rethrow();
@@ -1090,7 +1109,16 @@ u32 scaleblockcycles_clear()
 	DevCon.WriteLn(L"Unscaled overall: %d,  scaled overall: %d,  relative EE clock speed: %d %%",
 		unscaled_overall, scaled_overall, static_cast<int>(100 * ratio));
 #endif
-	s_nBlockCycles &= 0x7;
+	s8 cyclerate = EmuConfig.Speedhacks.EECycleRate;
+
+	if (cyclerate > 1)
+	{
+		s_nBlockCycles &= (0x1 << (cyclerate + 2)) - 1;
+	}
+	else
+	{
+		s_nBlockCycles &= 0x7;
+	}
 
 	return scaled;
 }
@@ -2204,9 +2232,9 @@ StartRecomp:
 
 #ifdef PCSX2_DEBUG
 	// dump code
-	for (i = 0; i < ArraySize(s_recblocks); ++i)
+	for (u32 recblock : s_recblocks)
 	{
-		if (startpc == s_recblocks[i])
+		if (startpc == recblock)
 		{
 			iDumpBlock(startpc, recPtr);
 		}

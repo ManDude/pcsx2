@@ -26,8 +26,6 @@
 #include "SPU2/spu2.h"
 #include "R3000A.h"
 
-#include "ConsoleLogger.h"
-
 using namespace R5900;
 
 // Shift the middle 8 bits (bits 4-12) into the lower 8 bits.
@@ -308,7 +306,7 @@ void __fastcall _hwWrite8(u32 mem, u8 value)
 			sio_buffer[sio_count++] = value;
 		}
 
-		if ((sio_count == ArraySize(sio_buffer)-1) || (sio_count != 0 && sio_buffer[sio_count-1] == '\n'))
+		if ((sio_count == std::size(sio_buffer)-1) || (sio_count != 0 && sio_buffer[sio_count-1] == '\n'))
 		{
 			sio_buffer[sio_count] = 0;
 			eeConLog( ShiftJIS_ConvertString(sio_buffer) );

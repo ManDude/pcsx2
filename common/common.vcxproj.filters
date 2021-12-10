@@ -55,6 +55,9 @@
     <ClCompile Include="emitter\movs.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Misc.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="Mutex.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -67,16 +70,10 @@
     <ClCompile Include="PrecompiledHeader.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="pxStaticText.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="pxStreams.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="pxTranslate.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="pxWindowTextWriter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="RwMutex.cpp">
@@ -109,17 +106,35 @@
     <ClCompile Include="Windows\WinThreads.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="wxGuiTools.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="wxHelpers.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="emitter\x86emitter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="FastJmp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="StringUtil.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SettingsWrapper.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="WindowInfo.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GL\ContextWGL.cpp">
+      <Filter>Source Files\GL</Filter>
+    </ClCompile>
+    <ClCompile Include="GL\Context.cpp">
+      <Filter>Source Files\GL</Filter>
+    </ClCompile>
+    <ClCompile Include="GL\StreamBuffer.cpp">
+      <Filter>Source Files\GL</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AlignedMalloc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Assertions.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -201,9 +216,6 @@
     <ClInclude Include="PrecompiledHeader.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pxStaticText.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="RedtapeWindows.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -211,9 +223,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="SafeArray.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="ScopedAlloc.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="emitter\implement\simd_arithmetic.h">
@@ -249,9 +258,6 @@
     <ClInclude Include="wxBaseTools.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="wxGuiTools.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="emitter\x86emitter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -264,6 +270,39 @@
     <ClInclude Include="StringHelpers.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="FastJmp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="StringUtil.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SettingsInterface.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SettingsWrapper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ScopedGuard.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Align.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="WindowInfo.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="BitCast.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GL\Context.h">
+      <Filter>Header Files\GL</Filter>
+    </ClInclude>
+    <ClInclude Include="GL\ContextWGL.h">
+      <Filter>Header Files\GL</Filter>
+    </ClInclude>
+    <ClInclude Include="GL\StreamBuffer.h">
+      <Filter>Header Files\GL</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Source Files">
@@ -272,10 +311,21 @@
     <Filter Include="Header Files">
       <UniqueIdentifier>{eef579af-e6a8-4d3b-a88e-c0e4cad9e5d8}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\GL">
+      <UniqueIdentifier>{92d1bb2d-d172-4356-b9f4-a8fcc8e7fcce}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\GL">
+      <UniqueIdentifier>{5e76b340-cb0e-4946-83ec-7d72e397cac8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="EventSource.inl">
       <Filter>Source Files</Filter>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="FastJmp.asm">
+      <Filter>Source Files</Filter>
+    </MASM>
   </ItemGroup>
 </Project>

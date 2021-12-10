@@ -16,11 +16,12 @@
 #pragma once
 #include <wx/wx.h>
 #include <wx/notebook.h>
-#include "App.h"
+#include "gui/App.h"
 
 #include "CtrlDisassemblyView.h"
 #include "CtrlRegisterList.h"
 #include "CtrlMemView.h"
+#include "CtrlMemSearch.h"
 #include "DebugEvents.h"
 #include "DebuggerLists.h"
 #include "gui/MSWstuff.h"
@@ -49,6 +50,7 @@ public:
 	CtrlDisassemblyView* getDisassembly() { return disassembly; };
 	CtrlRegisterList* getRegisterList() { return registerList; };
 	CtrlMemView* getMemoryView() { return memory; };
+	CtrlMemSearch* getMemorySearch() { return memorySearch; };
 	wxNotebook* getBottomTabs() { return bottomTabs; };
 	void update();
 	void showMemoryView() { setBottomTabPage(memory); };
@@ -68,6 +70,7 @@ private:
 	CtrlRegisterList* registerList;
 	wxListBox* functionList;
 	CtrlMemView* memory;
+	CtrlMemSearch* memorySearch;
 	wxNotebook* bottomTabs;
 	wxNotebook* leftTabs;
 	BreakpointList* breakpointList;

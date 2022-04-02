@@ -27,6 +27,11 @@
 #include "common/MemsetFast.inl"
 #include "common/Perf.h"
 
+#ifdef PCSX2_CORE
+#include "GSDumpReplayer.h"
+
+extern R5900cpu GSDumpReplayerCpu;
+#endif
 
 // --------------------------------------------------------------------------------------
 //  RecompiledCodeReserve  (implementations)
@@ -234,14 +239,11 @@ void SysLogMachineCaps()
 	};
 
 	Console.WriteLn( Color_StrongBlack,	L"x86 Features Detected:" );
-    Console.Indent().WriteLn(result[0] + (result[1].IsEmpty() ? L"" : (L"\n" + result[1])));
-#ifdef __M_X86_64
-    Console.Indent().WriteLn("Pcsx2 was compiled as 64-bits.");
-#endif
+	Console.Indent().WriteLn(result[0] + (result[1].IsEmpty() ? L"" : (L"\n" + result[1])));
 
 	Console.Newline();
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(PCSX2_CORE)
 	CheckIsUserOnHighPerfPowerPlan();
 #endif
 }
@@ -331,7 +333,13 @@ static wxString GetMemoryErrorVM()
 
 namespace HostMemoryMap {
 	// For debuggers
-	uptr EEmem, IOPmem, VUmem, EErec, IOPrec, VIF0rec, VIF1rec, mVU0rec, mVU1rec, bumpAllocator;
+	extern "C" {
+#ifdef _WIN32
+	_declspec(dllexport) uptr EEmem, IOPmem, VUmem, EErec, IOPrec, VIF0rec, VIF1rec, mVU0rec, mVU1rec, bumpAllocator;
+#else
+	__attribute__((visibility("default"), used)) uptr EEmem, IOPmem, VUmem, EErec, IOPrec, VIF0rec, VIF1rec, mVU0rec, mVU1rec, bumpAllocator;
+#endif
+	}
 }
 
 /// Attempts to find a spot near static variables for the main memory
@@ -570,6 +578,11 @@ void SysCpuProviderPack::ApplyConfig() const
 
 	if( EmuConfig.Cpu.Recompiler.EnableVU1 )
 		CpuVU1 = (BaseVUmicroCPU*)CpuProviders->microVU1;
+
+#ifdef PCSX2_CORE
+	if (GSDumpReplayer::IsReplayingDump())
+		Cpu = &GSDumpReplayerCpu;
+#endif
 }
 
 // Resets all PS2 cpu execution caches, which does not affect that actual PS2 state/condition.

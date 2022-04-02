@@ -51,13 +51,15 @@ class GSState : public GSAlignedClass<32>
 	GIFPackedRegHandler m_fpGIFPackedRegHandlers[16];
 	GIFPackedRegHandler m_fpGIFPackedRegHandlerXYZ[8][4];
 
+	void CheckFlushes();
+
 	void GIFPackedRegHandlerNull(const GIFPackedReg* RESTRICT r);
 	void GIFPackedRegHandlerRGBA(const GIFPackedReg* RESTRICT r);
 	void GIFPackedRegHandlerSTQ(const GIFPackedReg* RESTRICT r);
 	void GIFPackedRegHandlerUV(const GIFPackedReg* RESTRICT r);
 	void GIFPackedRegHandlerUV_Hack(const GIFPackedReg* RESTRICT r);
-	template<u32 prim, u32 adc, bool auto_flush> void GIFPackedRegHandlerXYZF2(const GIFPackedReg* RESTRICT r);
-	template<u32 prim, u32 adc, bool auto_flush> void GIFPackedRegHandlerXYZ2(const GIFPackedReg* RESTRICT r);
+	template<u32 prim, u32 adc, bool auto_flush, bool index_swap> void GIFPackedRegHandlerXYZF2(const GIFPackedReg* RESTRICT r);
+	template<u32 prim, u32 adc, bool auto_flush, bool index_swap> void GIFPackedRegHandlerXYZ2(const GIFPackedReg* RESTRICT r);
 	void GIFPackedRegHandlerFOG(const GIFPackedReg* RESTRICT r);
 	void GIFPackedRegHandlerA_D(const GIFPackedReg* RESTRICT r);
 	void GIFPackedRegHandlerNOP(const GIFPackedReg* RESTRICT r);
@@ -73,8 +75,8 @@ class GSState : public GSAlignedClass<32>
 	GIFPackedRegHandlerC m_fpGIFPackedRegHandlerSTQRGBAXYZF2[8];
 	GIFPackedRegHandlerC m_fpGIFPackedRegHandlerSTQRGBAXYZ2[8];
 
-	template<u32 prim, bool auto_flush> void GIFPackedRegHandlerSTQRGBAXYZF2(const GIFPackedReg* RESTRICT r, u32 size);
-	template<u32 prim, bool auto_flush> void GIFPackedRegHandlerSTQRGBAXYZ2(const GIFPackedReg* RESTRICT r, u32 size);
+	template<u32 prim, bool auto_flush, bool index_swap> void GIFPackedRegHandlerSTQRGBAXYZF2(const GIFPackedReg* RESTRICT r, u32 size);
+	template<u32 prim, bool auto_flush, bool index_swap> void GIFPackedRegHandlerSTQRGBAXYZ2(const GIFPackedReg* RESTRICT r, u32 size);
 	void GIFPackedRegHandlerNOP(const GIFPackedReg* RESTRICT r, u32 size);
 
 	template<int i> void ApplyTEX0(GIFRegTEX0& TEX0);
@@ -86,8 +88,8 @@ class GSState : public GSAlignedClass<32>
 	void GIFRegHandlerST(const GIFReg* RESTRICT r);
 	void GIFRegHandlerUV(const GIFReg* RESTRICT r);
 	void GIFRegHandlerUV_Hack(const GIFReg* RESTRICT r);
-	template<u32 prim, u32 adc, bool auto_flush> void GIFRegHandlerXYZF2(const GIFReg* RESTRICT r);
-	template<u32 prim, u32 adc, bool auto_flush> void GIFRegHandlerXYZ2(const GIFReg* RESTRICT r);
+	template<u32 prim, u32 adc, bool auto_flush, bool index_swap> void GIFRegHandlerXYZF2(const GIFReg* RESTRICT r);
+	template<u32 prim, u32 adc, bool auto_flush, bool index_swap> void GIFRegHandlerXYZ2(const GIFReg* RESTRICT r);
 	template<int i> void GIFRegHandlerTEX0(const GIFReg* RESTRICT r);
 	template<int i> void GIFRegHandlerCLAMP(const GIFReg* RESTRICT r);
 	void GIFRegHandlerFOG(const GIFReg* RESTRICT r);
@@ -120,7 +122,10 @@ class GSState : public GSAlignedClass<32>
 	void GIFRegHandlerTRXDIR(const GIFReg* RESTRICT r);
 	void GIFRegHandlerHWREG(const GIFReg* RESTRICT r);
 
-	int m_version;
+	template<bool auto_flush, bool index_swap>
+	void SetPrimHandlers();
+
+	u32 m_version;
 	int m_sssize;
 
 	struct GSTransferBuffer
@@ -139,24 +144,25 @@ class GSState : public GSAlignedClass<32>
 
 	} m_tr;
 
+private:
+	void CalcAlphaMinMax();
+
 protected:
 	bool IsBadFrame();
 	void SetupCrcHack();
 
-	bool m_userhacks_wildhack;
 	bool m_isPackedUV_HackFlag;
 	CRCHackLevel m_crc_hack_level;
 	GetSkipCount m_gsc;
 	int m_skip;
 	int m_skip_offset;
-	int m_userhacks_skipdraw;
-	int m_userhacks_skipdraw_offset;
-	bool m_userhacks_auto_flush;
 
 	GSVertex m_v;
 	float m_q;
 	GSVector4i m_scissor;
 	GSVector4i m_ofxy;
+
+	bool m_scanmask_used;
 	bool tex_flushed;
 
 	struct
@@ -179,21 +185,39 @@ protected:
 	void UpdateVertexKick();
 
 	void GrowVertexBuffer();
-
-	template <u32 prim, bool auto_flush>
+	void HandleAutoFlush();
+	
+	template <u32 prim, bool auto_flush, bool index_swap>
 	void VertexKick(u32 skip);
 
 	// following functions need m_vt to be initialized
 
 	GSVertexTrace m_vt;
-
-	void GetTextureMinMax(GSVector4i& r, const GIFRegTEX0& TEX0, const GIFRegCLAMP& CLAMP, bool linear);
-	void GetAlphaMinMax();
-	bool TryAlphaTest(u32& fm, u32& zm);
+	GSVertexTrace::VertexAlpha& GetAlphaMinMax()
+	{
+		if (!m_vt.m_alpha.valid)
+			CalcAlphaMinMax();
+		return m_vt.m_alpha;
+	}
+	struct TextureMinMaxResult
+	{
+		enum UsesBoundary
+		{
+			USES_BOUNDARY_LEFT   = 1 << 0,
+			USES_BOUNDARY_TOP    = 1 << 1,
+			USES_BOUNDARY_RIGHT  = 1 << 2,
+			USES_BOUNDARY_BOTTOM = 1 << 3,
+			USES_BOUNDARY_U = USES_BOUNDARY_LEFT | USES_BOUNDARY_RIGHT,
+			USES_BOUNDARY_V = USES_BOUNDARY_TOP | USES_BOUNDARY_BOTTOM,
+		};
+		GSVector4i coverage; ///< Part of the texture used
+		u8 uses_boundary;    ///< Whether or not the usage touches the left, top, right, or bottom edge (and therefore needs wrap modes preserved)
+	};
+	TextureMinMaxResult GetTextureMinMax(const GIFRegTEX0& TEX0, const GIFRegCLAMP& CLAMP, bool linear);
+	bool TryAlphaTest(u32& fm, const u32 fm_mask, u32& zm);
 	bool IsOpaque();
 	bool IsMipMapDraw();
 	bool IsMipMapActive();
-	GIFRegTEX0 GetTex0Layer(u32 lod);
 
 public:
 	GIFPath m_path[4];
@@ -202,7 +226,6 @@ public:
 	GSLocalMemory m_mem;
 	GSDrawingEnvironment m_env;
 	GSDrawingContext* m_context;
-	GSPerfMon m_perfmon;
 	u32 m_crc;
 	CRC::Game m_game;
 	std::unique_ptr<GSDumpBase> m_dump;
@@ -210,7 +233,9 @@ public:
 	int m_frameskip;
 	bool m_NTSC_Saturation;
 	bool m_nativeres;
-	int m_mipmap;
+	bool m_mipmap;
+	bool m_primflush;
+	GIFRegPRIM m_last_prim;
 
 	static int s_n;
 	bool s_dump;
@@ -221,6 +246,18 @@ public:
 	int s_saven;
 	int s_savel;
 	std::string m_dump_root;
+
+	static constexpr u32 STATE_VERSION = 8;
+
+	enum PRIM_OVERLAP
+	{
+		PRIM_OVERLAP_UNKNOW,
+		PRIM_OVERLAP_YES,
+		PRIM_OVERLAP_NO
+	};
+
+	PRIM_OVERLAP m_prim_overlap;
+	std::vector<size_t> m_drawlist;
 
 public:
 	GSState();
@@ -240,6 +277,8 @@ public:
 	float GetTvRefreshRate();
 
 	virtual void Reset();
+	virtual void UpdateSettings(const Pcsx2Config::GSOptions& old_config);
+
 	void Flush();
 	void FlushPrim();
 	void FlushWrite();
@@ -259,7 +298,17 @@ public:
 	template<int index> void Transfer(const u8* mem, u32 size);
 	int Freeze(freezeData* fd, bool sizeonly);
 	int Defrost(const freezeData* fd);
+
+	u32 GetGameCRC() const { return m_crc; }
+	int GetGameCRCOptions() const { return m_options; }
 	virtual void SetGameCRC(u32 crc, int options);
+
+	u8* GetRegsMem() const { return reinterpret_cast<u8*>(m_regs); }
+	void SetRegsMem(u8* basemem) { m_regs = reinterpret_cast<GSPrivRegSet*>(basemem); }
+
 	void SetFrameSkip(int skip);
-	void SetRegsMem(u8* basemem);
+	void DumpVertices(const std::string& filename);
+
+	PRIM_OVERLAP PrimitiveOverlap();
+	GIFRegTEX0 GetTex0Layer(u32 lod);
 };

@@ -17,7 +17,7 @@
 #include "PrecompiledHeader.h"
 #include "IopCommon.h"
 #include "Config.h"
-#include "gui/AppCoreThread.h"
+#include "System/SysThreads.h"
 
 #include "R5900OpcodeTables.h"
 #include "DebugTools/Breakpoints.h"
@@ -141,7 +141,9 @@ void psxBreakpoint(bool memcheck)
 	}
 
 	CBreakPoints::SetBreakpointTriggered(true);
+#ifndef PCSX2_CORE
 	GetCoreThread().PauseSelfDebug();
+#endif
 	throw Exception::ExitCpuExecute();
 }
 
@@ -151,10 +153,7 @@ void psxMemcheck(u32 op, u32 bits, bool store)
 	u32 start = psxRegs.GPR.r[(op >> 21) & 0x1F];
 	if ((s16)op != 0)
 		start += (s16)op;
-	if (bits == 128)
-		start &= ~0x0F;
 
-	start = standardizeBreakpointAddress(BREAKPOINT_IOP, start);
 	u32 end = start + bits / 8;
 
 	auto checks = CBreakPoints::GetMemChecks();
@@ -202,9 +201,6 @@ void psxCheckMemcheck()
 	case MEMTYPE_DWORD:
 		psxMemcheck(op, 64, store);
 		break;
-	case MEMTYPE_QWORD:
-		psxMemcheck(op, 128, store);
-		break;
 	}
 }
 
@@ -216,7 +212,7 @@ static __fi void execI()
 	// This function is called for every instruction.
 	// Enabling the define below will probably, no, will cause the interpretor to be slower.
 //#define EXTRA_DEBUG
-#ifdef EXTRA_DEBUG
+#if defined(EXTRA_DEBUG) || defined(PCSX2_DEVBUILD)
 	if (psxIsBreakpointNeeded(psxRegs.pc))
 		psxBreakpoint(false);
 

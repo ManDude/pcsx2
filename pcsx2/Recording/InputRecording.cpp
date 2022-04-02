@@ -15,17 +15,23 @@
 
 #include "PrecompiledHeader.h"
 
-#include "gui/AppSaveStates.h"
+#include "common/StringUtil.h"
+#include "SaveState.h"
 #include "Counters.h"
+#include "SaveState.h"
 
 #ifndef DISABLE_RECORDING
 
-#include "gui/AppGameDatabase.h"
+#include "gui/App.h"
+#include "gui/AppSaveStates.h"
 #include "DebugTools/Debug.h"
+#include "GameDatabase.h"
 
 #include "InputRecording.h"
 #include "InputRecordingControls.h"
 #include "Utilities/InputRecordingLogger.h"
+
+#include "gui/AppSaveStates.h"
 
 #include <fmt/format.h>
 
@@ -447,22 +453,18 @@ void InputRecording::GoToFirstFrame(wxWindow* parent)
 
 wxString InputRecording::resolveGameName()
 {
-	// Code loosely taken from AppCoreThread::_ApplySettings to resolve the Game Name
-	wxString gameName;
-	const wxString gameKey(SysGetDiscID());
-	if (!gameKey.IsEmpty())
+	std::string gameName;
+	const std::string gameKey(StringUtil::wxStringToUTF8String(SysGetDiscID()));
+	if (!gameKey.empty())
 	{
-		if (IGameDatabase* gameDB = AppHost_GetGameDatabase())
+		auto game = GameDatabase::findGame(gameKey);
+		if (game)
 		{
-			GameDatabaseSchema::GameEntry game = gameDB->findGame(std::string(gameKey.ToUTF8()));
-			if (game.isValid)
-			{
-				gameName = fromUTF8(game.name);
-				gameName += L" (" + fromUTF8(game.region) + L")";
-			}
+			gameName = game->name;
+			gameName += " (" + game->region + ")";
 		}
 	}
-	return !gameName.IsEmpty() ? gameName : (wxString)Path::GetFilename(g_Conf->CurrentIso);
+	return !gameName.empty() ? StringUtil::UTF8StringToWxString(gameName) : Path::GetFilename(g_Conf->CurrentIso);
 }
 
 #endif

@@ -15,11 +15,15 @@
 
 #include "PrecompiledHeader.h"
 #include "Common.h"
+#include "common/FileSystem.h"
 
 #include "GS.h"			// for sending game crc to mtgs
 #include "Elfheader.h"
 #include "DebugTools/SymbolMap.h"
+
+#ifndef PCSX2_CORE
 #include "gui/AppCoreThread.h"
+#endif
 
 u32 ElfCRC;
 u32 ElfEntry;
@@ -152,7 +156,7 @@ void ElfObject::readIso(IsoFile& file)
 void ElfObject::readFile()
 {
 	int rsize = 0;
-	FILE *f = wxFopen( filename, "rb" );
+	FILE *f = FileSystem::OpenCFile( filename.ToUTF8(), "rb" );
 	if (f == NULL) throw Exception::FileNotFound( filename );
 
 	fseek(f, 0, SEEK_SET);
@@ -352,7 +356,9 @@ int GetPS2ElfName( wxString& name )
 			else if( parts.lvalue == L"VER" )
 			{
 				Console.WriteLn( Color_Blue, L"(SYSTEM.CNF) Software version = " + parts.rvalue );
+#ifndef PCSX2_CORE
 				GameInfo::gameVersion = parts.rvalue;
+#endif
 			}
 		}
 

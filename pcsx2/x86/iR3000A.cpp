@@ -574,11 +574,7 @@ static void psxRecompileIrxImport()
 
 	if (SysTraceActive(IOP.Bios))
 	{
-		#ifdef __M_X86_64
-			xMOV64(arg3reg, (uptr)funcname);
-		#else
-			xPUSH((uptr)funcname);
-		#endif
+		xMOV64(arg3reg, (uptr)funcname);
 
 		xFastCall((void*)irxImportLog_rec, import_table, index);
 	}
@@ -1127,7 +1123,9 @@ void psxDynarecCheckBreakpoint()
 		return;
 
 	CBreakPoints::SetBreakpointTriggered(true);
+#ifndef PCSX2_CORE
 	GetCoreThread().PauseSelfDebug();
+#endif
 	iopBreakpoint = true;
 }
 
@@ -1138,7 +1136,9 @@ void psxDynarecMemcheck()
 		return;
 
 	CBreakPoints::SetBreakpointTriggered(true);
+#ifndef PCSX2_CORE
 	GetCoreThread().PauseSelfDebug();
+#endif
 	iopBreakpoint = true;
 }
 
@@ -1158,12 +1158,8 @@ void psxRecMemcheck(u32 op, u32 bits, bool store)
 	_psxMoveGPRtoR(ecx, (op >> 21) & 0x1F);
 	if ((s16)op != 0)
 		xADD(ecx, (s16)op);
-	if (bits == 128)
-		xAND(ecx, ~0x0F);
 
-	xFastCall((void*)standardizeBreakpointAddressIop, ecx);
-	xMOV(ecx, eax);
-	xMOV(edx, eax);
+	xMOV(edx, ecx);
 	xADD(edx, bits / 8);
 
 	// ecx = access address
@@ -1183,11 +1179,11 @@ void psxRecMemcheck(u32 op, u32 bits, bool store)
 
 		// logic: memAddress < bpEnd && bpStart < memAddress+memSize
 
-		xMOV(eax, standardizeBreakpointAddress(BREAKPOINT_IOP, checks[i].end));
+		xMOV(eax, checks[i].end);
 		xCMP(ecx, eax);     // address < end
 		xForwardJGE8 next1; // if address >= end then goto next1
 
-		xMOV(eax, standardizeBreakpointAddress(BREAKPOINT_IOP, checks[i].start));
+		xMOV(eax, checks[i].start);
 		xCMP(eax, edx);     // start < address+size
 		xForwardJGE8 next2; // if start >= address+size then goto next2
 
@@ -1238,7 +1234,6 @@ void psxEncodeMemcheck()
 		case MEMTYPE_HALF:  psxRecMemcheck(op,  16, store); break;
 		case MEMTYPE_WORD:  psxRecMemcheck(op,  32, store); break;
 		case MEMTYPE_DWORD: psxRecMemcheck(op,  64, store); break;
-		case MEMTYPE_QWORD: psxRecMemcheck(op, 128, store); break;
 	}
 }
 

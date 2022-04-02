@@ -19,13 +19,18 @@ target_sources(common PRIVATE
 	FastFormatString.cpp
 	FastJmp.cpp
 	GL/Context.cpp
+	GL/Program.cpp
+	GL/ShaderCache.cpp
 	GL/StreamBuffer.cpp
+	FileSystem.cpp
 	IniInterface.cpp
 	Mutex.cpp
 	Misc.cpp
+	MD5Digest.cpp
 	PathUtils.cpp
 	PrecompiledHeader.cpp
 	Perf.cpp
+	ProgressCallback.cpp
 	pxStreams.cpp
 	pxTranslate.cpp
 	RwMutex.cpp
@@ -33,6 +38,7 @@ target_sources(common PRIVATE
 	SettingsWrapper.cpp
 	StringHelpers.cpp
 	StringUtil.cpp
+	Timer.cpp
 	ThreadTools.cpp
 	WindowInfo.cpp
 	emitter/bmi.cpp
@@ -47,7 +53,6 @@ target_sources(common PRIVATE
 	emitter/LnxCpuDetect.cpp
 	emitter/WinCpuDetect.cpp
 	emitter/x86emitter.cpp
-	x86/MemcpyFast.cpp
 	Darwin/DarwinThreads.cpp
 	Darwin/DarwinMisc.cpp
 	Darwin/DarwinSemaphore.cpp
@@ -56,7 +61,8 @@ target_sources(common PRIVATE
 	Linux/LnxMisc.cpp
 	Windows/WinThreads.cpp
 	Windows/WinHostSys.cpp
-	Windows/WinMisc.cpp)
+	Windows/WinMisc.cpp
+)
 
 # x86emitter headers
 target_sources(common PRIVATE
@@ -66,17 +72,25 @@ target_sources(common PRIVATE
 	boost_spsc_queue.hpp
 	Console.h
 	Dependencies.h
+	EnumOps.h
 	EventSource.h
 	Exceptions.h
 	FastJmp.h
+	FileSystem.h
 	General.h
 	GL/Context.h
+	GL/Program.h
+	GL/ShaderCache.h
 	GL/StreamBuffer.h
+	HashCombine.h
 	MemcpyFast.h
 	MemsetFast.inl
+	MD5Digest.h
+	MRCHelpers.h
 	Path.h
 	PageFaultSource.h
 	PrecompiledHeader.h
+	ProgressCallback.h
 	pxForwardDefs.h
 	pxStreams.h
 	RedtapeWindows.h
@@ -88,6 +102,7 @@ target_sources(common PRIVATE
 	SettingsWrapper.h
 	StringHelpers.h
 	StringUtil.h
+	Timer.h
 	Threading.h
 	TraceLog.h
 	WindowInfo.h
@@ -117,7 +132,35 @@ target_sources(common PRIVATE
 	emitter/tools.h
 	emitter/x86emitter.h
 	emitter/x86types.h
+)
+
+if(USE_VULKAN)
+	target_link_libraries(common PUBLIC
+		Vulkan-Headers glslang
 	)
+	target_sources(common PRIVATE
+		Vulkan/ShaderCache.cpp
+		Vulkan/Texture.cpp
+		Vulkan/Loader.cpp
+		Vulkan/ShaderCompiler.cpp
+		Vulkan/Util.cpp
+		Vulkan/SwapChain.cpp
+		Vulkan/StreamBuffer.cpp
+		Vulkan/Context.cpp
+		Vulkan/Builders.cpp
+		Vulkan/vk_mem_alloc.cpp
+		Vulkan/Context.h
+		Vulkan/Texture.h
+		Vulkan/ShaderCompiler.h
+		Vulkan/SwapChain.h
+		Vulkan/Builders.h
+		Vulkan/StreamBuffer.h
+		Vulkan/ShaderCache.h
+		Vulkan/EntryPoints.h
+		Vulkan/Loader.h
+		Vulkan/Util.h
+	)
+endif()
 
 if(USE_VTUNE)
 	target_link_libraries(common PUBLIC Vtune::Vtune)
@@ -126,9 +169,13 @@ endif()
 if(WIN32)
 	enable_language(ASM_MASM)
 	target_sources(common PRIVATE FastJmp.asm)
-	target_link_libraries(common PUBLIC pthreads4w Winmm.lib)
+	target_link_libraries(common PUBLIC WIL::WIL pthreads4w Winmm.lib)
 	target_sources(common PRIVATE
 		FastJmp.asm
+		D3D11/ShaderCache.cpp
+		D3D11/ShaderCache.h
+		D3D11/ShaderCompiler.cpp
+		D3D11/ShaderCompiler.h
 		GL/ContextWGL.cpp
 		GL/ContextWGL.h
 	)
@@ -139,8 +186,8 @@ elseif(APPLE)
 		GL/ContextAGL.h
 	)
 	set_source_files_properties(GL/ContextAGL.mm PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
-	target_compile_options(common PUBLIC -fobjc-arc)
-	target_link_options(common PUBLIC -fobjc-link-runtime)
+	target_compile_options(common PRIVATE -fobjc-arc)
+	target_link_options(common PRIVATE -fobjc-link-runtime)
 else()
 	if(X11_API OR WAYLAND_API)
 		target_sources(common PRIVATE
@@ -155,6 +202,7 @@ else()
 			GL/ContextEGLX11.cpp
 			GL/ContextEGLX11.h
 		)
+		target_compile_definitions(common PUBLIC "VULKAN_USE_X11=1")
 		if(TARGET PkgConfig::XRANDR)
 			target_link_libraries(common PRIVATE PkgConfig::XRANDR)
 			target_compile_definitions(common PRIVATE "HAS_XRANDR=1")
@@ -166,7 +214,8 @@ else()
 			GL/ContextEGLWayland.cpp
 			GL/ContextEGLWayland.h
 		)
-	  target_link_libraries(common PRIVATE ${WAYLAND_EGL_LIBRARIES})
+		target_link_libraries(common PRIVATE ${WAYLAND_EGL_LIBRARIES})
+		target_compile_definitions(common PUBLIC "VULKAN_USE_WAYLAND=1")
 	endif()
 endif()
 

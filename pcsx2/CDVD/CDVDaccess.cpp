@@ -33,6 +33,7 @@
 #include "IsoFS/IsoFSCDVD.h"
 #include "CDVDisoReader.h"
 
+#include "common/FileSystem.h"
 #include "common/StringUtil.h"
 #include "DebugTools/SymbolMap.h"
 #include "Config.h"
@@ -101,6 +102,16 @@ static int CheckDiskTypeFS(int baseType)
 			}
 
 			return (baseType == CDVD_TYPE_DETCTCD) ? CDVD_TYPE_PS2CD : CDVD_TYPE_PS2DVD;
+		}
+		catch (Exception::FileNotFound&)
+		{
+		}
+
+		// PS2 Linux disc 2, doesn't have a System.CNF or a normal ELF
+		try
+		{
+			IsoFile file(rootdir, L"P2L_0100.02;1");
+			return CDVD_TYPE_PS2DVD;
 		}
 		catch (Exception::FileNotFound&)
 		{
@@ -376,33 +387,33 @@ bool DoCDVDopen()
 		return true;
 	}
 
-	wxString somepick(Path::GetFilenameWithoutExt(fromUTF8(m_SourceFilename[CurrentSourceType])));
+	std::string somepick(FileSystem::StripExtension(FileSystem::GetDisplayNameFromPath(m_SourceFilename[CurrentSourceType])));
 	//FWIW Disc serial availability doesn't seem reliable enough, sometimes it's there and sometime it's just null
 	//Shouldn't the serial be available all time? Potentially need to look into Elfreloadinfo() reliability
 	//TODO: Add extra fallback case for CRC.
-	if (somepick.IsEmpty() && !DiscSerial.IsEmpty())
-		somepick = L"Untitled-" + DiscSerial;
-	else if (somepick.IsEmpty())
-		somepick = L"Untitled";
+	if (somepick.empty() && !DiscSerial.IsEmpty())
+		somepick = StringUtil::StdStringFromFormat("Untitled-%s", DiscSerial.ToUTF8().data());
+	else if (somepick.empty())
+		somepick = "Untitled";
 
 	if (EmuConfig.CurrentBlockdump.empty())
-		EmuConfig.CurrentBlockdump = StringUtil::wxStringToUTF8String(wxGetCwd());
+		EmuConfig.CurrentBlockdump = FileSystem::GetWorkingDirectory();
 
-	wxString temp(Path::Combine(StringUtil::UTF8StringToWxString(EmuConfig.CurrentBlockdump), somepick));
+	std::string temp(Path::CombineStdString(EmuConfig.CurrentBlockdump, somepick));
 
 #ifdef ENABLE_TIMESTAMPS
 	wxDateTime curtime(wxDateTime::GetTimeNow());
 
-	temp += pxsFmt(L" (%04d-%02d-%02d %02d-%02d-%02d)",
-				   curtime.GetYear(), curtime.GetMonth(), curtime.GetDay(),
-				   curtime.GetHour(), curtime.GetMinute(), curtime.GetSecond());
+	temp += StringUtil::StdStringFromFormat(" (%04d-%02d-%02d %02d-%02d-%02d)",
+		curtime.GetYear(), curtime.GetMonth(), curtime.GetDay(),
+		curtime.GetHour(), curtime.GetMinute(), curtime.GetSecond());
 #endif
-	temp += L".dump";
+	temp += ".dump";
 
 	cdvdTD td;
 	CDVD->getTD(0, &td);
 
-	blockDumpFile.Create(temp, 2);
+	blockDumpFile.Create(std::move(temp), 2);
 
 	if (blockDumpFile.IsOpened())
 	{
@@ -432,7 +443,12 @@ bool DoCDVDopen()
 void DoCDVDclose()
 {
 	CheckNullCDVD();
-	//blockDumpFile.Close();
+
+#ifdef PCSX2_CORE
+	// This was commented out, presumably because pausing/resuming in wx reopens CDVD.
+	// This is a non-issue in Qt, so we'll leave it behind the ifdef.
+	blockDumpFile.Close();
+#endif
 
 	if (CDVD->close != NULL)
 		CDVD->close();
